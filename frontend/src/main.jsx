@@ -11,8 +11,7 @@ import {
 import './styles.css';
 import Admin from './Admin.jsx';
 
-const API ='https://foodie-pdft.onrender.com/api';
-
+const API = 'https://foodie-pdft.onrender.com/api';
 const img = (seed) =>
   `https://images.unsplash.com/photo-${seed}?auto=format&fit=crop&w=800&q=80`;
 
