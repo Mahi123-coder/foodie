@@ -108,6 +108,8 @@ function Header({ count }) {
         <Link to="/">Home</Link>
         <Link to="/orders">Orders</Link>
         <Link to="/login">Login</Link>
+        <Link to="/register">Sign Up</Link>
+
 
         <Link className="cart" to="/cart">
           Cart ({count})
