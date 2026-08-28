@@ -1,4 +1,4 @@
-# Swiggy-style Food Delivery App
+# Food Delivery App
 
 A learning-focused full-stack food delivery application built with React, Node.js/Express, and MongoDB.
 
