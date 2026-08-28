@@ -1,0 +1,1617 @@
+/* =========================
+   GLOBAL
+========================= */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, Arial, sans-serif;
+  background: #fffaf7;
+  color: #1f2937;
+  line-height: 1.5;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+::selection {
+  background: #ffdccb;
+  color: #8f2800;
+}
+
+
+/* =========================
+   NAVBAR
+========================= */
+
+header {
+  height: 74px;
+  padding: 0 7%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
+
+  border-bottom: 1px solid #f1e7e1;
+
+  position: sticky;
+  top: 0;
+  z-index: 100;
+
+  box-shadow: 0 2px 15px rgba(80, 40, 20, 0.04);
+}
+
+.logo {
+  font-size: 28px;
+  font-weight: 850;
+  letter-spacing: -1px;
+  color: #fc4c02;
+  transition: 0.2s ease;
+}
+
+.logo:hover {
+  transform: scale(1.02);
+}
+
+nav {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  font-weight: 650;
+}
+
+nav a {
+  position: relative;
+  transition: 0.2s ease;
+}
+
+nav a:hover {
+  color: #fc4c02;
+}
+
+nav a:not(.cart)::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -7px;
+  width: 0;
+  height: 2px;
+  background: #fc4c02;
+  border-radius: 10px;
+  transition: 0.2s ease;
+}
+
+nav a:not(.cart):hover::after {
+  width: 100%;
+}
+
+.cart {
+  background: linear-gradient(135deg, #fc4c02, #ff6a2a);
+  color: white;
+  padding: 11px 19px;
+  border-radius: 12px;
+  box-shadow: 0 6px 16px rgba(252, 76, 2, 0.2);
+  transition: 0.2s ease;
+}
+
+.cart:hover {
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 9px 22px rgba(252, 76, 2, 0.28);
+}
+
+
+/* =========================
+   GENERAL
+========================= */
+
+main {
+  max-width: 1200px;
+  margin: auto;
+  padding: 42px 24px 90px;
+}
+
+h1 {
+  margin-top: 0;
+  font-size: 42px;
+  line-height: 1.08;
+  letter-spacing: -1.3px;
+}
+
+h2 {
+  margin-top: 45px;
+  margin-bottom: 22px;
+  font-size: 28px;
+  letter-spacing: -0.5px;
+}
+
+h3 {
+  margin: 8px 0;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+
+/* =========================
+   HERO
+========================= */
+
+.hero {
+  min-height: 420px;
+  border-radius: 28px;
+  padding: 70px;
+
+  display: flex;
+  align-items: center;
+
+  position: relative;
+  overflow: hidden;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(15, 10, 7, 0.82),
+      rgba(15, 10, 7, 0.42),
+      rgba(15, 10, 7, 0.12)
+    ),
+    url("https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1600&q=85")
+      center / cover;
+
+  color: white;
+
+  box-shadow:
+    0 20px 50px rgba(65, 35, 20, 0.18);
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(252, 76, 2, 0.1),
+    transparent 50%
+  );
+  pointer-events: none;
+}
+
+.hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.hero h1 {
+  font-size: 56px;
+  max-width: 680px;
+  margin: 8px 0 16px;
+  letter-spacing: -2px;
+}
+
+.hero p {
+  font-size: 18px;
+  line-height: 1.6;
+  max-width: 620px;
+  color: #f7f7f7;
+}
+
+.hero .eyebrow {
+  color: #ffb38a;
+}
+
+
+/* =========================
+   SEARCH
+========================= */
+
+.search {
+  margin-top: 30px;
+  display: flex;
+  max-width: 680px;
+
+  background: white;
+  padding: 7px;
+  border-radius: 16px;
+
+  box-shadow:
+    0 12px 35px rgba(0, 0, 0, 0.2);
+
+  transition: 0.2s ease;
+}
+
+.search:focus-within {
+  box-shadow:
+    0 14px 40px rgba(0, 0, 0, 0.25);
+  transform: translateY(-1px);
+}
+
+.search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 15px 16px;
+  font-size: 16px;
+  color: #222;
+  background: transparent;
+}
+
+.search button,
+.primary {
+  border: none;
+
+  background: linear-gradient(
+    135deg,
+    #fc4c02,
+    #ff6a2a
+  );
+
+  color: white;
+
+  padding: 13px 25px;
+  border-radius: 11px;
+
+  font-weight: 750;
+
+  box-shadow:
+    0 7px 18px rgba(252, 76, 2, 0.2);
+
+  transition: 0.2s ease;
+}
+
+.search button:hover,
+.primary:hover {
+  background: linear-gradient(
+    135deg,
+    #e64400,
+    #f45a18
+  );
+
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 10px 23px rgba(252, 76, 2, 0.28);
+}
+
+
+/* =========================
+   FOOD CATEGORIES
+========================= */
+
+.categories {
+  padding: 8px 0 15px;
+}
+
+.categories h2 {
+  margin-bottom: 22px;
+}
+
+.categoryRow {
+  display: flex;
+  gap: 18px;
+  overflow-x: auto;
+  padding: 5px 3px 20px;
+  scrollbar-width: thin;
+}
+
+.categoryRow button {
+  min-width: 125px;
+  height: 120px;
+
+  border: 1px solid #eee2dc;
+  background: white;
+  border-radius: 20px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  gap: 9px;
+
+  box-shadow:
+    0 5px 18px rgba(75, 40, 20, 0.06);
+
+  transition: 0.25s ease;
+}
+
+.categoryRow button:hover {
+  transform: translateY(-6px);
+  border-color: #ffb08d;
+
+  box-shadow:
+    0 13px 28px rgba(75, 40, 20, 0.12);
+}
+
+.categoryEmoji {
+  font-size: 40px;
+  line-height: 1;
+  transition: 0.25s ease;
+}
+
+.categoryRow button:hover .categoryEmoji {
+  transform: scale(1.12);
+}
+
+.categoryRow button span:last-child {
+  font-size: 15px;
+  font-weight: 750;
+  color: #333;
+}
+
+
+/* =========================
+   RESTAURANT GRID
+========================= */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 26px;
+}
+
+.card {
+  background: white;
+  border-radius: 20px;
+  overflow: hidden;
+
+  border: 1px solid #eee5df;
+
+  box-shadow:
+    0 6px 20px rgba(70, 40, 20, 0.06);
+
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.card:hover {
+  transform: translateY(-8px);
+
+  box-shadow:
+    0 18px 38px rgba(70, 40, 20, 0.13);
+}
+
+.card img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  display: block;
+
+  transition: transform 0.4s ease;
+}
+
+.card:hover img {
+  transform: scale(1.04);
+}
+
+.card div {
+  padding: 19px;
+}
+
+.card h3 {
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+
+.card p {
+  color: #666;
+  margin: 7px 0;
+  line-height: 1.45;
+}
+
+.card small {
+  display: inline-block;
+  margin-top: 7px;
+  color: #444;
+  font-weight: 650;
+}
+
+
+/* =========================
+   EMPTY STATE
+========================= */
+
+.emptyState {
+  text-align: center;
+  padding: 70px 20px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #fff4ed,
+      #fffaf7
+    );
+
+  border: 1px solid #ffe4d6;
+  border-radius: 22px;
+
+  margin-top: 25px;
+}
+
+.emptyState > div {
+  font-size: 58px;
+  margin-bottom: 10px;
+}
+
+.emptyState h3 {
+  font-size: 24px;
+  margin: 8px 0;
+}
+
+.emptyState p {
+  color: #777;
+  margin-bottom: 25px;
+}
+
+.emptyState .primary {
+  display: inline-block;
+}
+
+
+/* =========================
+   RESTAURANT PAGE
+========================= */
+
+.restaurantHead {
+  min-height: 240px;
+  padding: 45px;
+
+  border-radius: 24px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #fff0e8,
+      #fffaf7
+    );
+
+  display: flex;
+  align-items: center;
+
+  border: 1px solid #ffe0cf;
+
+  box-shadow:
+    0 10px 30px rgba(100, 45, 20, 0.06);
+}
+
+.restaurantHead h1 {
+  font-size: 46px;
+  margin-bottom: 12px;
+}
+
+.restaurantHead p {
+  color: #555;
+  font-size: 17px;
+}
+
+
+/* =========================
+   MENU
+========================= */
+
+.menu {
+  max-width: 850px;
+}
+
+.menuItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 30px;
+
+  padding: 25px 7px;
+
+  border-bottom: 1px solid #eee5df;
+
+  transition: 0.2s ease;
+}
+
+.menuItem:hover {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.menuItem h3 {
+  font-size: 20px;
+}
+
+.menuItem p {
+  color: #777;
+  max-width: 600px;
+  line-height: 1.5;
+}
+
+.menuItem button {
+  flex-shrink: 0;
+
+  background: white;
+  color: #fc4c02;
+
+  border: 1px solid #fc4c02;
+
+  padding: 10px 24px;
+  border-radius: 10px;
+
+  font-weight: 800;
+
+  transition: 0.2s ease;
+}
+
+.menuItem button:hover {
+  background: #fc4c02;
+  color: white;
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 7px 18px rgba(252, 76, 2, 0.2);
+}
+
+.veg {
+  font-size: 13px;
+}
+
+
+/* =========================
+   CART
+========================= */
+
+.cartList {
+  max-width: 750px;
+
+  background: white;
+
+  border: 1px solid #eee5df;
+  border-radius: 18px;
+
+  overflow: hidden;
+
+  box-shadow:
+    0 8px 25px rgba(60, 30, 15, 0.06);
+}
+
+.cartRow {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+
+  gap: 20px;
+
+  padding: 21px;
+
+  border-bottom: 1px solid #eee5df;
+
+  align-items: center;
+}
+
+.cartRow:last-child {
+  border-bottom: none;
+}
+
+.cartRow button {
+  border: 1px solid #ddd;
+  background: white;
+
+  border-radius: 8px;
+
+  width: 34px;
+  height: 34px;
+
+  cursor: pointer;
+
+  font-size: 18px;
+
+  transition: 0.2s ease;
+}
+
+.cartRow button:hover {
+  border-color: #fc4c02;
+  color: #fc4c02;
+  background: #fff7f2;
+}
+
+textarea {
+  display: block;
+
+  width: 100%;
+  max-width: 750px;
+
+  min-height: 115px;
+
+  margin: 25px 0;
+
+  padding: 15px;
+
+  border: 1px solid #ddd;
+  border-radius: 12px;
+
+  background: white;
+
+  font-family: inherit;
+  font-size: 15px;
+
+  resize: vertical;
+
+  outline: none;
+
+  transition: 0.2s ease;
+}
+
+textarea:focus {
+  border-color: #fc4c02;
+
+  box-shadow:
+    0 0 0 4px rgba(252, 76, 2, 0.09);
+}
+
+
+/* =========================
+   LOGIN / REGISTER
+========================= */
+
+.formPage {
+  min-height: 72vh;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  padding: 30px 0;
+}
+
+.formPage form {
+  width: 420px;
+
+  padding: 38px;
+
+  border: 1px solid #eee5df;
+  border-radius: 22px;
+
+  box-shadow:
+    0 18px 45px rgba(70, 40, 20, 0.09);
+
+  background: white;
+}
+
+.formPage input {
+  display: block;
+
+  width: 100%;
+
+  margin: 14px 0;
+
+  padding: 14px 15px;
+
+  border: 1px solid #ddd;
+  border-radius: 11px;
+
+  font-size: 16px;
+
+  outline: none;
+
+  transition: 0.2s ease;
+}
+
+.formPage input:focus {
+  border-color: #fc4c02;
+
+  box-shadow:
+    0 0 0 4px rgba(252, 76, 2, 0.08);
+}
+
+.formPage .primary {
+  width: 100%;
+  margin-top: 10px;
+}
+
+
+/* =========================
+   ORDERS
+========================= */
+
+.order {
+  padding: 22px;
+
+  margin: 16px 0;
+
+  border: 1px solid #eee5df;
+  border-radius: 17px;
+
+  max-width: 750px;
+
+  background: white;
+
+  box-shadow:
+    0 7px 22px rgba(60, 30, 15, 0.05);
+
+  transition: 0.2s ease;
+}
+
+.order:hover {
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 11px 28px rgba(60, 30, 15, 0.08);
+}
+
+.order h3 {
+  margin-top: 0;
+}
+
+
+/* =========================
+   AI FOOD ASSISTANT
+========================= */
+
+.aiBox {
+  margin-top: 45px;
+  padding: 32px;
+
+  border-radius: 24px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #fff1e8,
+      #fffaf7
+    );
+
+  border: 1px solid #ffdfcf;
+
+  box-shadow:
+    0 12px 35px rgba(252, 76, 2, 0.08);
+}
+
+.aiHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+
+.aiHeader h2 {
+  margin: 10px 0 5px;
+  font-size: 30px;
+}
+
+.aiHeader p {
+  margin: 0;
+  color: #666;
+}
+
+.aiBadge {
+  display: inline-block;
+
+  background: linear-gradient(
+    135deg,
+    #fc4c02,
+    #ff6a2a
+  );
+
+  color: white;
+
+  padding: 6px 11px;
+
+  border-radius: 8px;
+
+  font-size: 11px;
+  font-weight: 850;
+
+  letter-spacing: 1px;
+}
+
+.aiIcon {
+  width: 72px;
+  height: 72px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: white;
+
+  border-radius: 50%;
+
+  font-size: 38px;
+
+  box-shadow:
+    0 7px 18px rgba(0, 0, 0, 0.08);
+}
+
+.aiSearch {
+  margin-top: 27px;
+
+  display: flex;
+
+  background: white;
+
+  padding: 7px;
+
+  border-radius: 15px;
+
+  border: 1px solid #eee5df;
+}
+
+.aiSearch input {
+  flex: 1;
+
+  border: none;
+  outline: none;
+
+  padding: 14px;
+
+  font-size: 16px;
+}
+
+.aiSearch button {
+  border: none;
+
+  background: linear-gradient(
+    135deg,
+    #fc4c02,
+    #ff6a2a
+  );
+
+  color: white;
+
+  padding: 13px 23px;
+
+  border-radius: 11px;
+
+  font-weight: 800;
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+.aiSearch button:hover {
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 8px 18px rgba(252, 76, 2, 0.2);
+}
+
+.aiMessage {
+  margin: 18px 0 0;
+
+  font-weight: 600;
+  color: #555;
+}
+
+.aiResults {
+  display: grid;
+
+  grid-template-columns: repeat(3, 1fr);
+
+  gap: 19px;
+
+  margin-top: 23px;
+}
+
+.aiCard {
+  display: block;
+
+  background: white;
+
+  border-radius: 17px;
+
+  overflow: hidden;
+
+  border: 1px solid #eee5df;
+
+  transition: 0.25s ease;
+}
+
+.aiCard:hover {
+  transform: translateY(-5px);
+
+  box-shadow:
+    0 13px 30px rgba(0, 0, 0, 0.1);
+}
+
+.aiCard img {
+  width: 100%;
+  height: 135px;
+
+  object-fit: cover;
+
+  transition: 0.3s ease;
+}
+
+.aiCard:hover img {
+  transform: scale(1.04);
+}
+
+.aiCard div {
+  padding: 15px;
+}
+
+.aiCard h3 {
+  margin-top: 0;
+}
+
+.aiCard p {
+  color: #666;
+  margin: 6px 0;
+}
+
+.aiCard small {
+  font-weight: 700;
+  color: #444;
+}
+
+
+/* =========================
+   ADMIN DASHBOARD
+========================= */
+
+.adminPage {
+  max-width: 1250px;
+}
+
+.adminHeader {
+  margin-bottom: 35px;
+}
+
+.adminHeader h1 {
+  margin-bottom: 8px;
+}
+
+.adminHeader p {
+  color: #666;
+}
+
+.adminStats {
+  display: grid;
+
+  grid-template-columns: repeat(4, 1fr);
+
+  gap: 20px;
+}
+
+.statCard {
+  background: white;
+
+  border: 1px solid #eee5df;
+
+  border-radius: 20px;
+
+  padding: 25px;
+
+  box-shadow:
+    0 8px 25px rgba(70, 40, 20, 0.06);
+
+  transition: 0.25s ease;
+}
+
+.statCard:hover {
+  transform: translateY(-4px);
+
+  box-shadow:
+    0 14px 30px rgba(70, 40, 20, 0.1);
+}
+
+.statCard span {
+  font-size: 29px;
+}
+
+.statCard p {
+  margin: 15px 0 5px;
+
+  color: #666;
+
+  font-weight: 650;
+}
+
+.statCard h2 {
+  margin: 0;
+
+  font-size: 32px;
+
+  color: #1f2937;
+}
+
+.revenueCard {
+  grid-column: span 4;
+
+  background:
+    linear-gradient(
+      135deg,
+      #fff0e8,
+      #fffaf7
+    );
+
+  border-color: #ffe0cf;
+}
+
+.adminSection {
+  margin-top: 48px;
+}
+
+.adminSection h2 {
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+
+.adminActions {
+  display: grid;
+
+  grid-template-columns: repeat(4, 1fr);
+
+  gap: 15px;
+}
+
+.adminActions button {
+  border: 1px solid #eee5df;
+
+  background: white;
+
+  padding: 18px;
+
+  border-radius: 13px;
+
+  font-size: 15px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+.adminActions button:hover {
+  border-color: #fc4c02;
+
+  color: #fc4c02;
+
+  transform: translateY(-3px);
+
+  box-shadow:
+    0 9px 22px rgba(0, 0, 0, 0.08);
+}
+
+
+/* =========================
+   ADMIN MESSAGES
+========================= */
+
+.adminMessage {
+  padding: 15px 19px;
+
+  margin-bottom: 25px;
+
+  border-radius: 12px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #fff0e8,
+      #fff8f4
+    );
+
+  border: 1px solid #ffd9c6;
+
+  color: #b63800;
+
+  font-weight: 650;
+
+  box-shadow:
+    0 5px 15px rgba(252, 76, 2, 0.05);
+}
+
+
+/* =========================
+   ADMIN FORMS
+========================= */
+
+.restaurantForm {
+  max-width: 850px;
+
+  display: grid;
+
+  grid-template-columns: 1fr 1fr;
+
+  gap: 15px;
+
+  padding: 27px;
+
+  border: 1px solid #eee5df;
+
+  border-radius: 20px;
+
+  background: white;
+
+  box-shadow:
+    0 9px 28px rgba(70, 40, 20, 0.06);
+}
+
+.restaurantForm input,
+.restaurantForm select {
+  width: 100%;
+
+  padding: 14px;
+
+  border: 1px solid #ddd;
+
+  border-radius: 10px;
+
+  background: white;
+
+  font-size: 15px;
+
+  font-family: inherit;
+
+  outline: none;
+
+  transition: 0.2s ease;
+}
+
+.restaurantForm input:focus,
+.restaurantForm select:focus {
+  border-color: #fc4c02;
+
+  box-shadow:
+    0 0 0 4px rgba(252, 76, 2, 0.07);
+}
+
+.checkboxRow {
+  display: flex;
+
+  align-items: center;
+
+  gap: 9px;
+
+  font-weight: 650;
+
+  color: #444;
+}
+
+.checkboxRow input {
+  width: auto;
+  accent-color: #fc4c02;
+}
+
+.formButtons {
+  display: flex;
+
+  gap: 10px;
+
+  align-items: center;
+}
+
+.cancelButton {
+  border: 1px solid #ddd;
+
+  background: white;
+
+  padding: 13px 20px;
+
+  border-radius: 10px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+.cancelButton:hover {
+  background: #f8f5f3;
+
+  transform: translateY(-1px);
+}
+
+
+/* =========================
+   ADMIN SECTION TITLES
+========================= */
+
+.sectionTitle {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 20px;
+}
+
+.sectionTitle span {
+  color: #777;
+
+  font-weight: 600;
+
+  background: #fff;
+
+  border: 1px solid #eee5df;
+
+  padding: 7px 12px;
+
+  border-radius: 20px;
+
+  font-size: 13px;
+}
+
+
+/* =========================
+   ADMIN LISTS
+========================= */
+
+.adminRestaurantList {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 15px;
+}
+
+.adminRestaurant {
+  display: flex;
+
+  align-items: center;
+
+  gap: 20px;
+
+  padding: 19px;
+
+  background: white;
+
+  border: 1px solid #eee5df;
+
+  border-radius: 18px;
+
+  box-shadow:
+    0 6px 20px rgba(70, 40, 20, 0.05);
+
+  transition: 0.25s ease;
+}
+
+.adminRestaurant:hover {
+  transform: translateY(-3px);
+
+  box-shadow:
+    0 12px 27px rgba(70, 40, 20, 0.09);
+
+  border-color: #eadbd2;
+}
+
+.adminRestaurant img {
+  width: 115px;
+
+  height: 92px;
+
+  object-fit: cover;
+
+  border-radius: 13px;
+}
+
+.restaurantInfo {
+  flex: 1;
+}
+
+.restaurantInfo h3 {
+  margin-top: 0;
+}
+
+.restaurantInfo p {
+  margin: 5px 0;
+
+  color: #666;
+}
+
+.restaurantInfo small {
+  color: #888;
+}
+
+.restaurantActions {
+  display: flex;
+
+  gap: 8px;
+}
+
+.restaurantActions button {
+  border: 1px solid #ddd;
+
+  background: white;
+
+  padding: 9px 15px;
+
+  border-radius: 9px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+.restaurantActions button:hover {
+  border-color: #fc4c02;
+
+  color: #fc4c02;
+
+  background: #fff9f6;
+}
+
+.restaurantActions .deleteButton {
+  color: #d32f2f;
+
+  border-color: #f0b8b8;
+}
+
+.restaurantActions .deleteButton:hover {
+  background: #fff0f0;
+
+  color: #b71c1c;
+
+  border-color: #e99b9b;
+}
+
+
+/* =========================
+   RESPONSIVE
+========================= */
+
+@media (max-width: 1000px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .adminStats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .revenueCard {
+    grid-column: span 2;
+  }
+}
+
+
+@media (max-width: 900px) {
+  .hero {
+    padding: 50px;
+  }
+
+  .hero h1 {
+    font-size: 46px;
+  }
+
+  .aiResults {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+
+@media (max-width: 800px) {
+  .adminActions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .restaurantForm {
+    grid-template-columns: 1fr;
+  }
+
+  .adminRestaurant {
+    align-items: flex-start;
+  }
+}
+
+
+@media (max-width: 650px) {
+  header {
+    height: auto;
+
+    min-height: 72px;
+
+    padding: 14px 18px;
+
+    gap: 15px;
+  }
+
+  nav {
+    gap: 10px;
+
+    font-size: 13px;
+  }
+
+  .logo {
+    font-size: 23px;
+  }
+
+  main {
+    padding: 28px 15px 65px;
+  }
+
+  h1 {
+    font-size: 36px;
+  }
+
+  h2 {
+    font-size: 25px;
+  }
+
+  .hero {
+    min-height: 440px;
+
+    padding: 35px 25px;
+
+    border-radius: 21px;
+  }
+
+  .hero h1 {
+    font-size: 38px;
+
+    letter-spacing: -1.2px;
+  }
+
+  .hero p {
+    font-size: 16px;
+  }
+
+  .search {
+    flex-direction: column;
+
+    background: transparent;
+
+    box-shadow: none;
+
+    padding: 0;
+  }
+
+  .search input {
+    border-radius: 11px;
+
+    margin-bottom: 8px;
+
+    background: white;
+  }
+
+  .search button {
+    width: 100%;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .restaurantHead {
+    padding: 32px 25px;
+  }
+
+  .restaurantHead h1 {
+    font-size: 34px;
+  }
+
+  .menuItem {
+    gap: 15px;
+  }
+
+  .menuItem button {
+    padding: 9px 16px;
+  }
+
+  .cartRow {
+    grid-template-columns: 1fr auto;
+  }
+
+  .cartRow button {
+    grid-column: 2;
+
+    grid-row: 1;
+  }
+
+  .formPage form {
+    width: 100%;
+
+    padding: 30px 22px;
+  }
+
+  .aiBox {
+    padding: 23px;
+
+    border-radius: 20px;
+  }
+
+  .aiHeader {
+    align-items: flex-start;
+  }
+
+  .aiResults {
+    grid-template-columns: 1fr;
+  }
+
+  .aiIcon {
+    width: 55px;
+
+    height: 55px;
+
+    font-size: 30px;
+  }
+
+  .adminStats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .revenueCard {
+    grid-column: span 2;
+  }
+
+  .adminRestaurant {
+    flex-direction: column;
+
+    align-items: flex-start;
+  }
+
+  .adminRestaurant img {
+    width: 100%;
+
+    height: 180px;
+  }
+
+  .restaurantActions {
+    width: 100%;
+  }
+
+  .restaurantActions button {
+    flex: 1;
+  }
+}
+
+
+@media (max-width: 450px) {
+  nav {
+    gap: 7px;
+
+    font-size: 12px;
+  }
+
+  .cart {
+    padding: 9px 12px;
+  }
+
+  .hero h1 {
+    font-size: 34px;
+  }
+
+  .adminStats {
+    grid-template-columns: 1fr;
+  }
+
+  .revenueCard {
+    grid-column: span 1;
+  }
+
+  .adminActions {
+    grid-template-columns: 1fr;
+  }
+
+  .sectionTitle {
+    align-items: flex-start;
+
+    flex-direction: column;
+  }
+}
