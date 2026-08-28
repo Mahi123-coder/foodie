@@ -784,11 +784,19 @@ function Auth({ mode }) {
     }
 
     localStorage.setItem(
-      'token',
-      b.token
-    );
+  'token',
+  b.token
+);
 
-    nav('/');
+setMsg(
+  mode === 'login'
+    ? 'Login successful! 🎉'
+    : 'Account created successfully! 🎉'
+);
+
+setTimeout(() => {
+  nav('/');
+}, 1500);
   };
 
   return (
