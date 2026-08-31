@@ -8,31 +8,19 @@ const router = Router();
 
 
 // =============================================================
-// GEMINI AI
-// =============================================================
-// IMPORTANT:
-// Do NOT initialize Gemini at module level.
-// We read GEMINI_API_KEY inside the request so that the
-// environment variable is definitely available when the route
-// runs.
-// =============================================================
-
-
-// =============================================================
 // RECOMMENDATION ROUTE
 // =============================================================
 
 router.post('/recommend', async (req, res) => {
   try {
-
     // =========================================================
-    // GET GEMINI API KEY
+    // GET GEMINI API KEY AT REQUEST TIME
     // =========================================================
 
     const apiKey = process.env.GEMINI_API_KEY;
 
     console.log(
-      'Gemini API key available:',
+      'AI recommend request - Gemini API key configured:',
       Boolean(apiKey)
     );
 
@@ -44,11 +32,7 @@ router.post('/recommend', async (req, res) => {
       });
     }
 
-
-    // =========================================================
-    // CREATE GEMINI CLIENT
-    // =========================================================
-
+    // Create Gemini client AFTER reading environment variable
     const ai = new GoogleGenAI({
       apiKey,
     });
@@ -60,7 +44,6 @@ router.post('/recommend', async (req, res) => {
 
     const { query } = req.body;
 
-
     if (!query || !query.trim()) {
       return res.status(400).json({
         message:
@@ -71,37 +54,36 @@ router.post('/recommend', async (req, res) => {
 
 
     // =========================================================
-    // GET RESTAURANTS + MENU ITEMS
+    // GET RESTAURANTS
     // =========================================================
 
     const restaurants =
       await Restaurant.find({}).lean();
+
+
+    // =========================================================
+    // GET MENU ITEMS
+    // =========================================================
 
     const menuItems =
       await MenuItem.find({}).lean();
 
 
     // =========================================================
-    // CREATE FOOD DATABASE FOR GEMINI
+    // BUILD AVAILABLE FOOD DATABASE
     // =========================================================
 
     const availableFoods = [];
 
-
     for (const restaurant of restaurants) {
-
-      const restaurantMenu =
-        menuItems.filter(
-          (item) =>
-            String(item.restaurant) ===
-            String(restaurant._id)
-        );
-
+      const restaurantMenu = menuItems.filter(
+        (item) =>
+          String(item.restaurant) ===
+          String(restaurant._id)
+      );
 
       for (const item of restaurantMenu) {
-
         availableFoods.push({
-
           restaurantId:
             String(restaurant._id),
 
@@ -140,34 +122,27 @@ router.post('/recommend', async (req, res) => {
 
           image:
             item.image || null,
-
         });
-
       }
-
     }
 
 
     // =========================================================
-    // NO FOOD IN DATABASE
+    // NO MENU ITEMS
     // =========================================================
 
     if (availableFoods.length === 0) {
-
       return res.json({
-
         message:
           'There are no menu items available yet. Please add some dishes from the admin panel. 🍽️',
 
         recommendations: [],
-
       });
-
     }
 
 
     // =========================================================
-    // CREATE FOOD DATABASE STRING
+    // CREATE DATABASE STRING
     // =========================================================
 
     const foodDatabase =
@@ -190,11 +165,11 @@ The user is asking:
 
 "${query}"
 
-You have been given the COMPLETE list of restaurants and
+You have been given the complete list of restaurants and
 menu items currently available in the application's database.
 
 Your job is to understand the user's request and select the
-BEST matching menu items from this database.
+best matching menu items from this database.
 
 IMPORTANT RULES:
 
@@ -208,50 +183,52 @@ IMPORTANT RULES:
 
 5. NEVER invent a rating.
 
-6. NEVER select a food item just because the restaurant's
+6. NEVER select a food item only because the restaurant's
    cuisine sounds similar.
 
-7. If the user asks for "salad", select actual menu items
+7. If the user asks for salad, select actual menu items
    whose name or description indicates salad.
 
 8. If the user asks for pizza, select actual pizza items.
 
-9. If the user asks for vegetarian food, select vegetarian
-   items where isVeg is true.
+9. If the user asks for chicken, select actual menu items
+   whose name or description indicates chicken.
 
-10. If the user asks for non-vegetarian food, select items
+10. If the user asks for vegetarian food, select items
+    where isVeg is true.
+
+11. If the user asks for non-vegetarian food, select items
     where isVeg is false.
 
-11. Respect explicit budget requirements.
+12. Respect explicit budget requirements.
 
-12. Understand natural language preferences such as:
+13. Understand natural language preferences such as:
+    healthy
+    spicy
+    sweet
+    filling
+    light
+    breakfast
+    dinner
+    vegetarian
+    non vegetarian
+    cheap
+    expensive
+    under a particular price
 
-    - healthy
-    - spicy
-    - sweet
-    - filling
-    - light
-    - breakfast
-    - dinner
-    - vegetarian
-    - non vegetarian
-    - cheap
-    - expensive
-    - under a particular price
-
-13. Prefer exact menu-item matches over generic restaurant
+14. Prefer exact menu-item matches over generic restaurant
     cuisine matches.
 
-14. Return up to 5 best recommendations.
+15. Return up to 5 best recommendations.
 
-15. If there are no suitable matches, return an empty array.
+16. If there are no suitable matches, return an empty array.
 
-16. Do not return duplicate menu items.
+17. Do not return duplicate menu items.
 
-17. The "reason" must explain why the selected item matches
+18. The reason must explain why the selected item matches
     the user's request.
 
-18. Return ONLY valid JSON.
+19. Return ONLY valid JSON.
 
 The JSON must have exactly this structure:
 
@@ -273,47 +250,35 @@ ${foodDatabase}
 
 
     // =========================================================
-    // ASK GEMINI
-    // =========================================================
-    // USING GEMINI 3.6 FLASH ONLY
+    // CALL GEMINI
     // =========================================================
 
     let response;
 
     try {
+      console.log(
+        'Calling Gemini model: gemini-3.6-flash'
+      );
 
       response =
         await ai.models.generateContent({
-
-          model:
-            'gemini-3.6-flash',
-
-          contents:
-            prompt,
-
-          config: {
-            responseMimeType:
-              'application/json',
-          },
-
+          model: 'gemini-3.6-flash',
+          contents: prompt,
         });
 
     } catch (geminiError) {
-
       console.error(
         'Gemini API error:',
         geminiError
       );
 
       return res.status(500).json({
-
         message:
-          'Gemini API request failed. Please try again.',
+          geminiError?.message ||
+          'Gemini AI could not process your request right now. Please try again.',
 
         recommendations: [],
-
       });
-
     }
 
 
@@ -322,8 +287,7 @@ ${foodDatabase}
     // =========================================================
 
     const responseText =
-      response.text?.trim();
-
+      response?.text?.trim();
 
     console.log(
       'GEMINI RAW RESPONSE:',
@@ -332,64 +296,43 @@ ${foodDatabase}
 
 
     if (!responseText) {
-
       return res.status(500).json({
-
         message:
           'Gemini returned an empty response.',
 
         recommendations: [],
-
       });
-
     }
 
 
     // =========================================================
-    // PARSE JSON
+    // CLEAN GEMINI JSON
     // =========================================================
 
     let aiResult;
 
-
     try {
+      let cleanText = responseText;
 
-      let cleanText =
-        responseText;
-
-
-      // Remove markdown code fences just in case.
-
-      if (
-        cleanText.startsWith('```')
-      ) {
-
-        cleanText =
-          cleanText
-            .replace(
-              /^```json\s*/i,
-              ''
-            )
-            .replace(
-              /^```\s*/i,
-              ''
-            )
-            .replace(
-              /\s*```$/i,
-              ''
-            )
-            .trim();
-
+      // Remove ```json
+      if (cleanText.startsWith('```json')) {
+        cleanText = cleanText
+          .replace(/^```json\s*/i, '')
+          .replace(/\s*```$/i, '')
+          .trim();
       }
 
+      // Remove generic ```
+      else if (cleanText.startsWith('```')) {
+        cleanText = cleanText
+          .replace(/^```\s*/i, '')
+          .replace(/\s*```$/i, '')
+          .trim();
+      }
 
-      aiResult =
-        JSON.parse(
-          cleanText
-        );
+      aiResult = JSON.parse(cleanText);
 
     } catch (parseError) {
-
       console.error(
         'Gemini JSON parse error:',
         parseError
@@ -400,16 +343,12 @@ ${foodDatabase}
         responseText
       );
 
-
       return res.status(500).json({
-
         message:
           'Gemini returned an invalid recommendation response. Please try again.',
 
         recommendations: [],
-
       });
-
     }
 
 
@@ -423,34 +362,27 @@ ${foodDatabase}
         aiResult.recommendations
       )
     ) {
-
       return res.json({
-
         message:
           'I could not find suitable recommendations for your request. 🤔',
 
         recommendations: [],
-
       });
-
     }
 
 
     // =========================================================
-    // VALIDATE IDs AGAINST DATABASE
+    // VALIDATE DATABASE IDS
     // =========================================================
 
     const validatedRecommendations = [];
 
-    const seenMenuItems =
-      new Set();
-
+    const seenMenuItems = new Set();
 
     for (
       const aiRecommendation
       of aiResult.recommendations
     ) {
-
       if (
         !aiRecommendation ||
         !aiRecommendation.menuItemId ||
@@ -489,7 +421,7 @@ ${foodDatabase}
 
 
       // =======================================================
-      // INVALID DATABASE IDS
+      // INVALID IDS
       // =======================================================
 
       if (
@@ -519,36 +451,20 @@ ${foodDatabase}
       const menuKey =
         String(menuItem._id);
 
-
       if (
         seenMenuItems.has(menuKey)
       ) {
         continue;
       }
 
-
-      seenMenuItems.add(
-        menuKey
-      );
+      seenMenuItems.add(menuKey);
 
 
       // =======================================================
       // RETURN REAL DATABASE DATA
       // =======================================================
-      //
-      // We NEVER trust Gemini for:
-      //
-      // - price
-      // - restaurant name
-      // - rating
-      // - image
-      // - location
-      //
-      // Everything comes directly from MongoDB.
-      // =======================================================
 
       validatedRecommendations.push({
-
         restaurantId:
           restaurant._id,
 
@@ -591,9 +507,7 @@ ${foodDatabase}
         reason:
           aiRecommendation.reason ||
           'This dish matches your request.',
-
       });
-
     }
 
 
@@ -604,16 +518,12 @@ ${foodDatabase}
     if (
       validatedRecommendations.length === 0
     ) {
-
       return res.json({
-
         message:
           `I couldn't find a suitable match for "${query}". Try another food or preference. 🤔`,
 
         recommendations: [],
-
       });
-
     }
 
 
@@ -633,37 +543,28 @@ ${foodDatabase}
     // =========================================================
 
     return res.json({
-
       message:
         aiResult.message ||
         `I found ${topRecommendations.length} great options for you! 🍽️`,
 
       recommendations:
         topRecommendations,
-
     });
 
-
   } catch (error) {
-
     console.error(
       'AI recommendation error:',
       error
     );
 
-
     return res.status(500).json({
-
       message:
-        error.message ||
+        error?.message ||
         'Could not generate recommendations.',
 
       recommendations: [],
-
     });
-
   }
-
 });
 
 
