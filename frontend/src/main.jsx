@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+
 import {
   BrowserRouter,
   Routes,
@@ -8,34 +9,122 @@ import {
   useNavigate,
   useParams
 } from 'react-router-dom';
+
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  useMap,
+  useMapEvents
+} from 'react-leaflet';
+
+import L from 'leaflet';
+
+import 'leaflet/dist/leaflet.css';
 import './styles.css';
+
 import Admin from './Admin.jsx';
 
-const API = 'https://foodie-pdft.onrender.com/api';
+
+// =========================================================
+// API
+// =========================================================
+
+const API = 'http://localhost:5000/api';
+
+
+// =========================================================
+// DEFAULT IMAGE
+// =========================================================
+
 const img = (seed) =>
   `https://images.unsplash.com/photo-${seed}?auto=format&fit=crop&w=800&q=80`;
 
-/* =========================
-   APP
-========================= */
+
+// =========================================================
+// LEAFLET MARKER FIX
+// =========================================================
+
+delete L.Icon.Default.prototype._getIconUrl;
+
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl:
+    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+
+  iconUrl:
+    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+
+  shadowUrl:
+    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png'
+});
+
+
+// =========================================================
+// DISTANCE CALCULATION
+// HAVERSINE FORMULA
+// =========================================================
+
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(dLat / 2) *
+      Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+
+  const c =
+    2 * Math.atan2(
+      Math.sqrt(a),
+      Math.sqrt(1 - a)
+    );
+
+  return R * c;
+}
+
+
+// =========================================================
+// APP
+// =========================================================
 
 function App() {
-  const [cart, setCart] = useState(() =>
-    JSON.parse(localStorage.getItem('cart') || '[]')
-  );
+  const [cart, setCart] = useState(() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem('cart') || '[]'
+      );
+    } catch {
+      return [];
+    }
+  });
 
   useEffect(() => {
-    localStorage.setItem('cart', JSON.stringify(cart));
+    localStorage.setItem(
+      'cart',
+      JSON.stringify(cart)
+    );
   }, [cart]);
 
-  const add = (item, restaurant) =>
+
+  const add = (item, restaurant) => {
     setCart((current) => {
-      const existing = current.find((i) => i.menuItem === item._id);
+      const existing = current.find(
+        (i) => i.menuItem === item._id
+      );
 
       if (existing) {
         return current.map((i) =>
           i.menuItem === item._id
-            ? { ...i, quantity: i.quantity + 1 }
+            ? {
+                ...i,
+                quantity: i.quantity + 1
+              }
             : i
         );
       }
@@ -51,28 +140,55 @@ function App() {
         }
       ];
     });
+  };
 
-  const remove = (id) =>
+
+  const remove = (id) => {
     setCart((current) =>
-      current.flatMap((i) =>
-        i.menuItem === id
-          ? i.quantity > 1
-            ? [{ ...i, quantity: i.quantity - 1 }]
-            : []
-          : [i]
-      )
+      current.flatMap((i) => {
+        if (i.menuItem !== id) {
+          return [i];
+        }
+
+        if (i.quantity > 1) {
+          return [
+            {
+              ...i,
+              quantity: i.quantity - 1
+            }
+          ];
+        }
+
+        return [];
+      })
     );
+  };
+
 
   return (
     <>
-      <Header count={cart.reduce((s, i) => s + i.quantity, 0)} />
+      <Header
+        count={cart.reduce(
+          (sum, item) =>
+            sum + item.quantity,
+          0
+        )}
+      />
 
       <Routes>
-        <Route path="/" element={<Home />} />
+
+        <Route
+          path="/"
+          element={<Home />}
+        />
+
         <Route
           path="/restaurant/:id"
-          element={<Restaurant add={add} />}
+          element={
+            <Restaurant add={add} />
+          }
         />
+
         <Route
           path="/cart"
           element={
@@ -83,160 +199,931 @@ function App() {
             />
           }
         />
-        <Route path="/login" element={<Auth mode="login" />} />
-        <Route path="/register" element={<Auth mode="register" />} />
-        <Route path="/orders" element={<Orders />} />
-        <Route path="/admin" element={<Admin />} />
+
+        <Route
+          path="/login"
+          element={
+            <Auth mode="login" />
+          }
+        />
+
+        <Route
+          path="/register"
+          element={
+            <Auth mode="register" />
+          }
+        />
+
+        <Route
+          path="/orders"
+          element={<Orders />}
+        />
+
+        <Route
+          path="/admin"
+          element={<Admin />}
+        />
+
       </Routes>
     </>
   );
 }
 
-/* =========================
-   HEADER
-========================= */
+
+// =========================================================
+// HEADER
+// =========================================================
 
 function Header({ count }) {
   return (
     <header>
-      <Link to="/" className="logo">
+      <Link
+        to="/"
+        className="logo"
+      >
         Foodie 🍔
       </Link>
 
       <nav>
-        <Link to="/">Home</Link>
-        <Link to="/orders">Orders</Link>
-        <Link to="/login">Login</Link>
-        <Link to="/register">Sign Up</Link>
 
+        <Link to="/">
+          Home
+        </Link>
 
-        <Link className="cart" to="/cart">
+        <Link to="/orders">
+          Orders
+        </Link>
+
+        <Link to="/login">
+          Login
+        </Link>
+
+        <Link to="/register">
+          Sign Up
+        </Link>
+
+        <Link
+          className="cart"
+          to="/cart"
+        >
           Cart ({count})
         </Link>
+
       </nav>
     </header>
   );
 }
 
-/* =========================
-   HOME
-========================= */
+
+// =========================================================
+// LOCATION CONTROL FOR MAP
+// =========================================================
+
+function LocateMeControl({
+  onLocationFound,
+  selectedLocation
+}) {
+  const map = useMap();
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [error, setError] =
+    useState('');
+
+
+  const locateUser = () => {
+    if (!navigator.geolocation) {
+      setError(
+        'Geolocation is not supported by your browser.'
+      );
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat =
+          position.coords.latitude;
+
+        const lng =
+          position.coords.longitude;
+
+        const location = {
+          lat,
+          lng
+        };
+
+        onLocationFound(location);
+
+        map.flyTo(
+          [lat, lng],
+          14,
+          {
+            animate: true,
+            duration: 1.5
+          }
+        );
+
+        setLoading(false);
+      },
+
+      (error) => {
+        setLoading(false);
+
+        if (error.code === 1) {
+          setError(
+            'Location permission was denied. Please allow location access.'
+          );
+        } else if (error.code === 2) {
+          setError(
+            'Your location could not be determined.'
+          );
+        } else if (error.code === 3) {
+          setError(
+            'Location request timed out. Please try again.'
+          );
+        } else {
+          setError(
+            'Unable to get your location.'
+          );
+        }
+      },
+
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+  };
+
+
+  return (
+    <>
+      <div className="locateMeControl">
+
+        <button
+          type="button"
+          onClick={locateUser}
+          disabled={loading}
+        >
+          📍{' '}
+          {loading
+            ? 'Locating...'
+            : 'Use My Location'}
+        </button>
+
+        {error && (
+          <div className="locationError">
+            {error}
+          </div>
+        )}
+
+      </div>
+
+
+      {selectedLocation && (
+        <Marker
+          position={[
+            selectedLocation.lat,
+            selectedLocation.lng
+          ]}
+        >
+          <Popup>
+            <div className="userLocationPopup">
+
+              <strong>
+                📍 You are here
+              </strong>
+
+              <p>
+                Restaurants around
+                your location
+              </p>
+
+            </div>
+          </Popup>
+        </Marker>
+      )}
+    </>
+  );
+}
+
+
+// =========================================================
+// MAP CLICK LOCATION PICKER
+// =========================================================
+
+function MapLocationPicker({
+  onLocationFound
+}) {
+  useMapEvents({
+    click(e) {
+      const location = {
+        lat: e.latlng.lat,
+        lng: e.latlng.lng
+      };
+
+      onLocationFound(location);
+    }
+  });
+
+  return null;
+}
+
+
+// =========================================================
+// RESTAURANT MAP
+// =========================================================
+
+function RestaurantMap({
+  restaurants,
+  selectedLocation,
+  setSelectedLocation
+}) {
+  const validRestaurants =
+    restaurants.filter(
+      (restaurant) => {
+        const lat =
+          Number(
+            restaurant.latitude
+          );
+
+        const lng =
+          Number(
+            restaurant.longitude
+          );
+
+        return (
+          Number.isFinite(lat) &&
+          Number.isFinite(lng)
+        );
+      }
+    );
+
+
+  return (
+    <section className="mapSection">
+
+      <div className="mapHeader">
+
+        <div>
+
+          <p className="eyebrow">
+            FIND YOUR FOOD
+          </p>
+
+          <h2>
+            Restaurants near you 📍
+          </h2>
+
+          <p>
+            Use your location or click
+            anywhere on the map to find
+            nearby restaurants.
+          </p>
+
+        </div>
+
+        <div className="mapBadge">
+          📍 {validRestaurants.length}{' '}
+          locations
+        </div>
+
+      </div>
+
+
+      {validRestaurants.length === 0 ? (
+
+        <div className="emptyState">
+
+          <div>
+            📍
+          </div>
+
+          <h3>
+            Restaurant locations unavailable
+          </h3>
+
+          <p>
+            Make sure your restaurants have
+            latitude and longitude values.
+          </p>
+
+        </div>
+
+      ) : (
+
+        <div className="mapWrapper">
+
+          <MapContainer
+            center={[
+              12.9716,
+              77.5946
+            ]}
+            zoom={12}
+            scrollWheelZoom={true}
+            className="restaurantMap"
+          >
+
+            <TileLayer
+              attribution="&copy; OpenStreetMap contributors"
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+
+
+            <LocateMeControl
+              onLocationFound={
+                setSelectedLocation
+              }
+              selectedLocation={
+                selectedLocation
+              }
+            />
+
+
+            <MapLocationPicker
+              onLocationFound={
+                setSelectedLocation
+              }
+            />
+
+
+            {validRestaurants.map(
+              (restaurant) => {
+
+                const restaurantLat =
+                  Number(
+                    restaurant.latitude
+                  );
+
+                const restaurantLng =
+                  Number(
+                    restaurant.longitude
+                  );
+
+
+                let distance = null;
+
+
+                if (selectedLocation) {
+                  distance =
+                    calculateDistance(
+                      selectedLocation.lat,
+                      selectedLocation.lng,
+                      restaurantLat,
+                      restaurantLng
+                    );
+                }
+
+
+                return (
+                  <Marker
+                    key={restaurant._id}
+                    position={[
+                      restaurantLat,
+                      restaurantLng
+                    ]}
+                  >
+
+                    <Popup>
+
+                      <div className="mapPopup">
+
+                        <img
+                          src={
+                            restaurant.image ||
+                            img(
+                              '1552566626-52f8b828add9'
+                            )
+                          }
+                          alt={restaurant.name}
+                        />
+
+                        <h3>
+                          {restaurant.name}
+                        </h3>
+
+                        <p>
+                          ⭐{' '}
+                          {restaurant.rating}
+                        </p>
+
+                        <p>
+                          {restaurant.cuisine?.join(
+                            ', '
+                          )}
+                        </p>
+
+                        {distance !== null && (
+                          <p>
+                            📍{' '}
+                            {distance.toFixed(
+                              1
+                            )}{' '}
+                            km away
+                          </p>
+                        )}
+
+                        <p>
+                          ⏱️{' '}
+                          {
+                            restaurant.deliveryTime
+                          }{' '}
+                          min
+                        </p>
+
+                        <Link
+                          to={`/restaurant/${restaurant._id}`}
+                          className="mapButton"
+                        >
+                          View Restaurant
+                        </Link>
+
+                      </div>
+
+                    </Popup>
+
+                  </Marker>
+                );
+              }
+            )}
+
+          </MapContainer>
+
+        </div>
+      )}
+
+    </section>
+  );
+}
+
+
+// =========================================================
+// HOME
+// =========================================================
 
 function Home() {
-  const [data, setData] = useState([]);
-  const [q, setQ] = useState('');
-  const [aiQuery, setAiQuery] = useState('');
-  const [aiResults, setAiResults] = useState([]);
-  const [aiMessage, setAiMessage] = useState('');
 
-  const load = async (searchTerm = q) => {
+  const [data, setData] =
+    useState([]);
+
+  const [q, setQ] =
+    useState('');
+
+  const [aiQuery, setAiQuery] =
+    useState('');
+
+  const [aiResults, setAiResults] =
+    useState([]);
+
+  const [aiMessage, setAiMessage] =
+    useState('');
+
+
+  // LOCATION
+
+  const [
+    selectedLocation,
+    setSelectedLocation
+  ] = useState(null);
+
+  const [radius, setRadius] =
+    useState(10);
+
+  const [
+    locationMessage,
+    setLocationMessage
+  ] = useState(
+    'Use your location to discover nearby restaurants 📍'
+  );
+
+
+  // =======================================================
+  // LOAD RESTAURANTS
+  // =======================================================
+
+  const load = async (
+    searchTerm = q
+  ) => {
+
     try {
-      const response = await fetch(
-        `${API}/restaurants?search=${encodeURIComponent(searchTerm)}`
+
+      const response =
+        await fetch(
+          `${API}/restaurants?search=${encodeURIComponent(
+            searchTerm
+          )}`
+        );
+
+
+      if (!response.ok) {
+        throw new Error(
+          'Failed to load restaurants'
+        );
+      }
+
+
+      const result =
+        await response.json();
+
+
+      setData(
+        Array.isArray(result)
+          ? result
+          : []
       );
 
-      const result = await response.json();
-      setData(result);
     } catch (error) {
-      console.error('Failed to load restaurants:', error);
+
+      console.error(
+        'Failed to load restaurants:',
+        error
+      );
+
+      setData([]);
+
     }
   };
+
 
   useEffect(() => {
     load('');
   }, []);
 
-  const chooseCategory = async (category) => {
-    setQ(category);
-    await load(category);
-  };
 
-  /* =========================
-     AI FOOD ASSISTANT
-  ========================= */
+  // =======================================================
+  // CATEGORY
+  // =======================================================
 
-  const askAI = async () => {
-  const query = aiQuery.trim();
+  const chooseCategory =
+    async (category) => {
 
-  if (!query) {
-    setAiMessage('Tell me what you are craving 😋');
-    setAiResults([]);
-    return;
-  }
+      setQ(category);
 
-  try {
-    setAiMessage('Foodie AI is thinking... 🤖✨');
-    setAiResults([]);
+      await load(category);
+    };
 
-    const response = await fetch(`${API}/ai/recommend`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        query,
-      }),
-    });
 
-    const result = await response.json();
+  // =======================================================
+  // USE MY LOCATION
+  // =======================================================
 
-    if (!response.ok) {
-      throw new Error(
-        result.message || 'AI recommendation failed'
+  const useMyLocation = () => {
+
+    if (!navigator.geolocation) {
+
+      setLocationMessage(
+        'Geolocation is not supported by your browser.'
       );
+
+      return;
     }
 
-    setAiMessage(
-      result.message || 'Here are some recommendations for you! 🍽️'
+
+    setLocationMessage(
+      'Finding your location... 📍'
     );
 
-    const recommendations = result.recommendations || [];
 
-    const restaurantResponse = await fetch(
-      `${API}/restaurants`
-    );
+    navigator.geolocation.getCurrentPosition(
 
-    const restaurants = await restaurantResponse.json();
+      (position) => {
 
-    const formattedResults = recommendations
-      .map((recommendation) => {
-        const restaurant = restaurants.find(
-          (r) =>
-            String(r._id) ===
-            String(recommendation.restaurantId)
+        const location = {
+          lat:
+            position.coords.latitude,
+
+          lng:
+            position.coords.longitude
+        };
+
+
+        setSelectedLocation(
+          location
         );
 
-        if (!restaurant) return null;
+
+        setLocationMessage(
+          'Showing restaurants near your location 📍'
+        );
+
+      },
+
+
+      (error) => {
+
+        console.error(
+          'Geolocation error:',
+          error
+        );
+
+
+        if (error.code === 1) {
+
+          setLocationMessage(
+            'Location permission denied. Please allow it in your browser.'
+          );
+
+        } else if (error.code === 2) {
+
+          setLocationMessage(
+            'Could not determine your location.'
+          );
+
+        } else if (error.code === 3) {
+
+          setLocationMessage(
+            'Location request timed out. Try again.'
+          );
+
+        } else {
+
+          setLocationMessage(
+            'Unable to get your location.'
+          );
+        }
+      },
+
+
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+  };
+
+
+  // =======================================================
+  // CLEAR LOCATION
+  // =======================================================
+
+  const clearLocation = () => {
+
+    setSelectedLocation(null);
+
+    setLocationMessage(
+      'Showing all restaurants 🌎'
+    );
+  };
+
+
+  // =======================================================
+  // LOCATION BASED RESTAURANTS
+  // =======================================================
+
+  const nearbyRestaurants =
+    data
+
+      .map((restaurant) => {
+
+        const lat =
+          Number(
+            restaurant.latitude
+          );
+
+        const lng =
+          Number(
+            restaurant.longitude
+          );
+
+
+        if (
+          !selectedLocation ||
+          !Number.isFinite(lat) ||
+          !Number.isFinite(lng)
+        ) {
+
+          return {
+            ...restaurant,
+            distance: null
+          };
+        }
+
+
+        const distance =
+          calculateDistance(
+            selectedLocation.lat,
+            selectedLocation.lng,
+            lat,
+            lng
+          );
+
 
         return {
           ...restaurant,
-          aiMenuItem: recommendation.menuItemName,
-          aiPrice: recommendation.price,
-          aiReason: recommendation.reason,
+          distance
         };
       })
-      .filter(Boolean);
 
-    setAiResults(formattedResults);
-  } catch (error) {
-    console.error('AI error:', error);
 
-    setAiResults([]);
+      .filter((restaurant) => {
 
-    setAiMessage(
-      error.message ||
+        if (
+          !selectedLocation ||
+          restaurant.distance === null
+        ) {
+          return true;
+        }
+
+
+        return (
+          restaurant.distance <=
+          radius
+        );
+      })
+
+
+      .sort((a, b) => {
+
+        if (
+          a.distance === null &&
+          b.distance === null
+        ) {
+          return 0;
+        }
+
+
+        if (
+          a.distance === null
+        ) {
+          return 1;
+        }
+
+
+        if (
+          b.distance === null
+        ) {
+          return -1;
+        }
+
+
+        return (
+          a.distance -
+          b.distance
+        );
+      });
+
+
+  // =======================================================
+  // AI FOOD ASSISTANT
+  // =======================================================
+
+  const askAI = async () => {
+
+    const query =
+      aiQuery.trim();
+
+
+    if (!query) {
+
+      setAiMessage(
+        'Tell me what you are craving 😋'
+      );
+
+      setAiResults([]);
+
+      return;
+    }
+
+
+    try {
+
+      setAiMessage(
+        'Foodie AI is thinking... 🤖✨'
+      );
+
+      setAiResults([]);
+
+
+      const response =
+        await fetch(
+          `${API}/ai/recommend`,
+          {
+            method: 'POST',
+
+            headers: {
+              'Content-Type':
+                'application/json'
+            },
+
+            body: JSON.stringify({
+              query
+            })
+          }
+        );
+
+
+      const result =
+        await response.json();
+
+
+      if (!response.ok) {
+
+        throw new Error(
+          result.message ||
+          'AI recommendation failed'
+        );
+      }
+
+
+      setAiMessage(
+        result.message ||
+        'Here are some recommendations for you! 🍽️'
+      );
+
+
+      const recommendations =
+        result.recommendations || [];
+
+
+      const restaurantResponse =
+        await fetch(
+          `${API}/restaurants`
+        );
+
+
+      const restaurants =
+        await restaurantResponse.json();
+
+
+      const formattedResults =
+        recommendations
+
+          .map(
+            (recommendation) => {
+
+              const restaurant =
+                restaurants.find(
+                  (r) =>
+                    String(r._id) ===
+                    String(
+                      recommendation.restaurantId
+                    )
+                );
+
+
+              if (!restaurant) {
+                return null;
+              }
+
+
+              return {
+                ...restaurant,
+
+                aiMenuItem:
+                  recommendation.menuItemName,
+
+                aiPrice:
+                  recommendation.price,
+
+                aiReason:
+                  recommendation.reason
+              };
+            }
+          )
+
+          .filter(Boolean);
+
+
+      setAiResults(
+        formattedResults
+      );
+
+    } catch (error) {
+
+      console.error(
+        'AI error:',
+        error
+      );
+
+
+      setAiResults([]);
+
+
+      setAiMessage(
+        error.message ||
         'Sorry, I could not get recommendations right now. 😭'
-    );
-  }
-};
+      );
+    }
+  };
+
 
   return (
     <main>
 
-      {/* HERO */}
+      {/* =================================================
+          HERO
+      ================================================= */}
 
       <section className="hero">
+
         <div>
+
           <p className="eyebrow">
             Food delivery, your way
           </p>
@@ -246,11 +1133,13 @@ function Home() {
           </h1>
 
           <p>
-            Browse restaurants, explore menus and
-            order your favourites.
+            Browse restaurants, explore
+            menus and order your favourites.
           </p>
 
+
           <div className="search">
+
             <input
               value={q}
               onChange={(e) =>
@@ -264,19 +1153,256 @@ function Home() {
               placeholder="Search restaurants or cuisines"
             />
 
-            <button onClick={() => load()}>
+            <button
+              onClick={() => load()}
+            >
               Search
             </button>
+
           </div>
+
         </div>
+
       </section>
 
-      {/* AI FOOD ASSISTANT */}
+
+      {/* =================================================
+          LOCATION DISCOVERY
+      ================================================= */}
+
+      <section
+        style={{
+          margin: '30px auto',
+          padding: '25px',
+          maxWidth: '1400px',
+          background: '#fff',
+          borderRadius: '20px',
+          border: '1px solid #eee',
+          boxShadow:
+            '0 10px 30px rgba(0,0,0,0.05)'
+        }}
+      >
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent:
+              'space-between',
+            alignItems: 'center',
+            gap: '20px',
+            flexWrap: 'wrap'
+          }}
+        >
+
+          <div>
+
+            <span
+              style={{
+                display:
+                  'inline-block',
+                fontSize: '13px',
+                fontWeight: '700',
+                color: '#ff5a1f',
+                letterSpacing: '1px',
+                marginBottom: '8px'
+              }}
+            >
+              📍 LOCATION DISCOVERY
+            </span>
+
+
+            <h2
+              style={{
+                margin: '5px 0',
+                fontSize: '28px'
+              }}
+            >
+              Find restaurants near you
+            </h2>
+
+
+            <p
+              style={{
+                margin: '8px 0',
+                color: '#666'
+              }}
+            >
+              {locationMessage}
+            </p>
+
+          </div>
+
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              flexWrap: 'wrap'
+            }}
+          >
+
+            <button
+              className="primary"
+              onClick={
+                useMyLocation
+              }
+              type="button"
+            >
+              📍 Use My Location
+            </button>
+
+
+            {selectedLocation && (
+              <button
+                type="button"
+                onClick={
+                  clearLocation
+                }
+                style={{
+                  padding:
+                    '12px 18px',
+                  borderRadius:
+                    '10px',
+                  border:
+                    '1px solid #ddd',
+                  background:
+                    '#fff',
+                  cursor:
+                    'pointer',
+                  fontWeight:
+                    '600'
+                }}
+              >
+                Show All
+              </button>
+            )}
+
+          </div>
+
+        </div>
+
+
+        {selectedLocation && (
+
+          <div
+            style={{
+              marginTop: '20px',
+              padding: '18px',
+              background: '#fff7f2',
+              borderRadius: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent:
+                'space-between',
+              gap: '20px',
+              flexWrap: 'wrap'
+            }}
+          >
+
+            <div>
+
+              <strong>
+                📍 Nearby restaurants
+              </strong>
+
+              <p
+                style={{
+                  margin:
+                    '5px 0 0',
+                  color: '#666'
+                }}
+              >
+                Showing restaurants
+                within{' '}
+                <strong>
+                  {radius} km
+                </strong>{' '}
+                of your location.
+              </p>
+
+            </div>
+
+
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px'
+              }}
+            >
+
+              <label
+                htmlFor="radius"
+                style={{
+                  fontWeight:
+                    '600'
+                }}
+              >
+                Radius:
+              </label>
+
+
+              <select
+                id="radius"
+                value={radius}
+                onChange={(e) =>
+                  setRadius(
+                    Number(
+                      e.target.value
+                    )
+                  )
+                }
+                style={{
+                  padding:
+                    '10px 14px',
+                  borderRadius:
+                    '10px',
+                  border:
+                    '1px solid #ddd',
+                  background:
+                    '#fff',
+                  fontSize:
+                    '15px'
+                }}
+              >
+
+                <option value={5}>
+                  5 km
+                </option>
+
+                <option value={10}>
+                  10 km
+                </option>
+
+                <option value={25}>
+                  25 km
+                </option>
+
+                <option value={50}>
+                  50 km
+                </option>
+
+              </select>
+
+            </div>
+
+          </div>
+        )}
+
+      </section>
+
+
+      {/* =================================================
+          AI FOOD ASSISTANT
+      ================================================= */}
 
       <section className="aiBox">
 
         <div className="aiHeader">
+
           <div>
+
             <span className="aiBadge">
               ✨ AI FOOD ASSISTANT
             </span>
@@ -286,21 +1412,28 @@ function Home() {
             </h2>
 
             <p>
-              Tell me what you're craving and I'll
-              find something for you.
+              Tell me what you're craving
+              and I'll find something for you.
             </p>
+
           </div>
+
 
           <div className="aiIcon">
             🤖
           </div>
+
         </div>
 
+
         <div className="aiSearch">
+
           <input
             value={aiQuery}
             onChange={(e) =>
-              setAiQuery(e.target.value)
+              setAiQuery(
+                e.target.value
+              )
             }
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -310,10 +1443,14 @@ function Home() {
             placeholder="Try: spicy food under ₹300"
           />
 
-          <button onClick={askAI}>
+          <button
+            onClick={askAI}
+          >
             Ask AI ✨
           </button>
+
         </div>
+
 
         {aiMessage && (
           <p className="aiMessage">
@@ -321,14 +1458,19 @@ function Home() {
           </p>
         )}
 
+
         {aiResults.length > 0 && (
+
           <div className="aiResults">
+
             {aiResults.map((r) => (
+
               <Link
                 key={r._id}
                 to={`/restaurant/${r._id}`}
                 className="aiCard"
               >
+
                 <img
                   src={
                     r.image ||
@@ -339,46 +1481,74 @@ function Home() {
                   alt={r.name}
                 />
 
-                <div>
-                  <h3>{r.name}</h3>
-                  {r.aiMenuItem && (
-  <p>
-    🍽️ <strong>{r.aiMenuItem}</strong> · ₹{r.aiPrice}
-  </p>
-)}
 
-{r.aiReason && (
-  <p className="aiReason">
-    💡 {r.aiReason}
-  </p>
-)}
+                <div>
+
+                  <h3>
+                    {r.name}
+                  </h3>
+
+
+                  {r.aiMenuItem && (
+                    <p>
+                      🍽️{' '}
+                      <strong>
+                        {r.aiMenuItem}
+                      </strong>{' '}
+                      · ₹{r.aiPrice}
+                    </p>
+                  )}
+
+
+                  {r.aiReason && (
+                    <p className="aiReason">
+                      💡 {r.aiReason}
+                    </p>
+                  )}
+
 
                   <p>
                     ⭐ {r.rating} ·{' '}
                     {r.deliveryTime} min
                   </p>
 
+
                   <p>
-                    {r.cuisine?.join(', ')}
+                    {r.cuisine?.join(
+                      ', '
+                    )}
                   </p>
 
+
                   <small>
-                    ₹{r.priceForTwo || 400} for two
+                    ₹
+                    {r.priceForTwo || 400}{' '}
+                    for two
                   </small>
+
                 </div>
+
               </Link>
+
             ))}
+
           </div>
+
         )}
 
       </section>
 
-      {/* FOOD CATEGORIES */}
+
+      {/* =================================================
+          FOOD CATEGORIES
+      ================================================= */}
 
       <section className="categories">
+
         <h2>
           What are you craving?
         </h2>
+
 
         <div className="categoryRow">
 
@@ -391,8 +1561,11 @@ function Home() {
               🍕
             </span>
 
-            <span>Pizza</span>
+            <span>
+              Pizza
+            </span>
           </button>
+
 
           <button
             onClick={() =>
@@ -403,8 +1576,11 @@ function Home() {
               🍔
             </span>
 
-            <span>Burgers</span>
+            <span>
+              Burgers
+            </span>
           </button>
+
 
           <button
             onClick={() =>
@@ -415,8 +1591,11 @@ function Home() {
               🍜
             </span>
 
-            <span>Chinese</span>
+            <span>
+              Chinese
+            </span>
           </button>
+
 
           <button
             onClick={() =>
@@ -427,8 +1606,11 @@ function Home() {
               🍛
             </span>
 
-            <span>Indian</span>
+            <span>
+              Indian
+            </span>
           </button>
+
 
           <button
             onClick={() =>
@@ -439,8 +1621,11 @@ function Home() {
               🥗
             </span>
 
-            <span>Healthy</span>
+            <span>
+              Healthy
+            </span>
           </button>
+
 
           <button
             onClick={() =>
@@ -451,242 +1636,491 @@ function Home() {
               🍰
             </span>
 
-            <span>Desserts</span>
+            <span>
+              Desserts
+            </span>
           </button>
 
         </div>
+
       </section>
 
-      {/* RESTAURANTS */}
 
-      <section>
+      {/* =================================================
+          RESTAURANTS
+      ================================================= */}
+
+      <section className="restaurantsSection">
 
         <div
           style={{
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
+            justifyContent:
+              'space-between',
+            alignItems: 'center',
+            gap: '20px',
+            flexWrap: 'wrap'
           }}
         >
-          <h2>
-            {q
-              ? `Restaurants for "${q}"`
-              : 'Top restaurants'}
-          </h2>
 
-          {q && (
-            <button
-              className="primary"
-              onClick={() => {
-                setQ('');
-                load('');
-              }}
-            >
-              Clear search
-            </button>
-          )}
+          <div>
+
+            <h2>
+
+              {selectedLocation
+                ? 'Restaurants near you'
+                : q
+                ? `Restaurants for "${q}"`
+                : 'Top restaurants'}
+
+            </h2>
+
+
+            {selectedLocation && (
+              <p
+                style={{
+                  marginTop:
+                    '-5px',
+                  color: '#666'
+                }}
+              >
+                Sorted by distance 📍
+              </p>
+            )}
+
+          </div>
+
+
+          <div
+            style={{
+              display: 'flex',
+              gap: '10px'
+            }}
+          >
+
+            {q && (
+
+              <button
+                className="primary"
+                onClick={() => {
+                  setQ('');
+                  load('');
+                }}
+              >
+                Clear search
+              </button>
+
+            )}
+
+          </div>
+
         </div>
 
-        {data.length === 0 ? (
+
+        {nearbyRestaurants.length === 0 ? (
+
           <div className="emptyState">
-            <div>🍽️</div>
+
+            <div>
+              📍
+            </div>
 
             <h3>
-              No restaurants found
+              No restaurants found nearby
             </h3>
 
             <p>
-              Try another restaurant name
-              or cuisine.
+              Try increasing your search
+              radius or choose another
+              location.
             </p>
-          </div>
-        ) : (
-          <div className="grid">
-            {data.map((r) => (
-              <Link
-                className="card"
-                key={r._id}
-                to={`/restaurant/${r._id}`}
+
+
+            {selectedLocation && (
+              <button
+                className="primary"
+                onClick={() =>
+                  setRadius(50)
+                }
               >
-                <img
-                  src={
-                    r.image ||
-                    img(
-                      '1552566626-52f8b828add9'
-                    )
-                  }
-                  alt={r.name}
-                />
+                Search within 50 km
+              </button>
+            )}
 
-                <div>
-                  <h3>{r.name}</h3>
-
-                  <p>
-                    ⭐ {r.rating} ·{' '}
-                    {r.deliveryTime} min
-                  </p>
-
-                  <p>
-                    {r.cuisine?.join(', ')}
-                  </p>
-
-                  <small>
-                    ₹{r.priceForTwo || 400} for two
-                  </small>
-                </div>
-              </Link>
-            ))}
           </div>
+
+        ) : (
+
+          <div className="grid">
+
+            {nearbyRestaurants.map(
+              (r) => (
+
+                <Link
+                  className="card"
+                  key={r._id}
+                  to={`/restaurant/${r._id}`}
+                >
+
+                  <img
+                    src={
+                      r.image ||
+                      img(
+                        '1552566626-52f8b828add9'
+                      )
+                    }
+                    alt={r.name}
+                  />
+
+
+                  <div>
+
+                    <h3>
+                      {r.name}
+                    </h3>
+
+
+                    <p>
+                      ⭐ {r.rating} ·{' '}
+                      {r.deliveryTime} min
+                    </p>
+
+
+                    <p>
+                      {r.cuisine?.join(
+                        ', '
+                      )}
+                    </p>
+
+
+                    {r.distance !== null && (
+                      <p
+                        style={{
+                          fontWeight:
+                            '700',
+                          color:
+                            '#ff5a1f'
+                        }}
+                      >
+                        📍{' '}
+                        {r.distance.toFixed(
+                          1
+                        )}{' '}
+                        km away
+                      </p>
+                    )}
+
+
+                    <small>
+                      ₹
+                      {r.priceForTwo || 400}{' '}
+                      for two
+                    </small>
+
+                  </div>
+
+                </Link>
+
+              )
+            )}
+
+          </div>
+
         )}
 
       </section>
+
+
+      {/* =================================================
+          RESTAURANT MAP
+      ================================================= */}
+
+      <RestaurantMap
+        restaurants={
+          nearbyRestaurants
+        }
+        selectedLocation={
+          selectedLocation
+        }
+        setSelectedLocation={
+          setSelectedLocation
+        }
+      />
 
     </main>
   );
 }
 
-/* =========================
-   RESTAURANT
-========================= */
+
+// =========================================================
+// RESTAURANT PAGE
+// =========================================================
 
 function Restaurant({ add }) {
-  const { id } = useParams();
-  const [data, setData] = useState(null);
+
+  const { id } =
+    useParams();
+
+  const [data, setData] =
+    useState(null);
+
 
   useEffect(() => {
-    fetch(`${API}/restaurants/${id}`)
+
+    fetch(
+      `${API}/restaurants/${id}`
+    )
       .then((r) => r.json())
-      .then(setData);
+      .then(setData)
+      .catch((error) =>
+        console.error(
+          'Restaurant error:',
+          error
+        )
+      );
+
   }, [id]);
+
 
   if (!data) {
     return (
       <main>
-        <p>Loading...</p>
+        <p>
+          Loading...
+        </p>
       </main>
     );
   }
+
 
   return (
     <main>
 
       <div className="restaurantHead">
+
         <div>
+
           <h1>
             {data.restaurant.name}
           </h1>
 
           <p>
-            ⭐ {data.restaurant.rating} ·{' '}
-            {data.restaurant.cuisine.join(', ')}
+            ⭐{' '}
+            {data.restaurant.rating} ·{' '}
+            {data.restaurant.cuisine?.join(
+              ', '
+            )}
           </p>
 
           <p>
             {data.restaurant.location} ·{' '}
-            {data.restaurant.deliveryTime} min
+            {data.restaurant.deliveryTime}{' '}
+            min
           </p>
+
         </div>
+
       </div>
 
-      <h2>Menu</h2>
+
+      <h2>
+        Menu
+      </h2>
+
 
       <div className="menu">
-        {data.menu.map((m) => (
+
+        {data.menu?.map((m) => (
+
           <article
             className="menuItem"
             key={m._id}
           >
+
             <div>
+
               <span className="veg">
-                {m.isVeg ? '🟢' : '🔴'}
+                {m.isVeg
+                  ? '🟢'
+                  : '🔴'}
               </span>
 
-              <h3>{m.name}</h3>
+              <h3>
+                {m.name}
+              </h3>
 
-              <b>₹{m.price}</b>
+              <b>
+                ₹{m.price}
+              </b>
 
               <p>
                 {m.description}
               </p>
+
             </div>
+
 
             <button
               onClick={() =>
-                add(m, data.restaurant._id)
+                add(
+                  m,
+                  data.restaurant._id
+                )
               }
             >
               ADD
             </button>
+
           </article>
+
         ))}
+
       </div>
 
     </main>
   );
 }
 
-/* =========================
-   CART
-========================= */
 
-function Cart({ cart, remove, setCart }) {
-  const nav = useNavigate();
+// =========================================================
+// CART
+// =========================================================
 
-  const total = cart.reduce(
-    (s, i) => s + i.price * i.quantity,
-    0
-  );
+function Cart({
+  cart,
+  remove,
+  setCart
+}) {
 
-  const [address, setAddress] = useState('');
-  const [msg, setMsg] = useState('');
+  const nav =
+    useNavigate();
+
+
+  const total =
+    cart.reduce(
+      (sum, item) =>
+        sum +
+        item.price *
+          item.quantity,
+      0
+    );
+
+
+  const [address, setAddress] =
+    useState('');
+
+  const [msg, setMsg] =
+    useState('');
+
 
   const place = async () => {
-    const token = localStorage.getItem('token');
+
+    const token =
+      localStorage.getItem(
+        'token'
+      );
+
 
     if (!token) {
-      return nav('/login');
+      nav('/login');
+      return;
     }
+
 
     if (!cart.length) {
       return;
     }
 
-    const res = await fetch(`${API}/orders`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        restaurant: cart[0].restaurant,
-        items: cart,
-        total,
-        address
-      })
-    });
 
-    const body = await res.json();
+    try {
 
-    if (!res.ok) {
-      return setMsg(
-        body.message || 'Could not place order'
+      const res =
+        await fetch(
+          `${API}/orders`,
+          {
+            method: 'POST',
+
+            headers: {
+              'Content-Type':
+                'application/json',
+
+              Authorization:
+                `Bearer ${token}`
+            },
+
+            body: JSON.stringify({
+              restaurant:
+                cart[0].restaurant,
+
+              items: cart,
+
+              total,
+
+              address
+            })
+          }
+        );
+
+
+      const body =
+        await res.json();
+
+
+      if (!res.ok) {
+
+        setMsg(
+          body.message ||
+          'Could not place order'
+        );
+
+        return;
+      }
+
+
+      setCart([]);
+
+
+      setMsg(
+        'Order placed! 🎉'
+      );
+
+    } catch (error) {
+
+      console.error(
+        'Order error:',
+        error
+      );
+
+      setMsg(
+        'Could not place order. Please try again.'
       );
     }
-
-    setCart([]);
-    setMsg('Order placed! 🎉');
   };
+
 
   return (
     <main>
-      <h1>Your cart</h1>
+
+      <h1>
+        Your cart
+      </h1>
+
 
       {cart.length === 0 ? (
+
         <div className="emptyState">
-          <div>🛒</div>
-          <h3>Your cart is empty</h3>
+
+          <div>
+            🛒
+          </div>
+
+          <h3>
+            Your cart is empty
+          </h3>
+
           <p>
-            Add something delicious from a restaurant.
+            Add something delicious
+            from a restaurant.
           </p>
 
           <Link
@@ -695,43 +2129,63 @@ function Cart({ cart, remove, setCart }) {
           >
             Browse restaurants
           </Link>
+
         </div>
+
       ) : (
+
         <>
+
           <div className="cartList">
+
             {cart.map((i) => (
+
               <div
                 className="cartRow"
                 key={i.menuItem}
               >
-                <span>{i.name}</span>
 
                 <span>
-                  ₹{i.price} × {i.quantity}
+                  {i.name}
+                </span>
+
+                <span>
+                  ₹{i.price} ×{' '}
+                  {i.quantity}
                 </span>
 
                 <button
                   onClick={() =>
-                    remove(i.menuItem)
+                    remove(
+                      i.menuItem
+                    )
                   }
                 >
                   −
                 </button>
+
               </div>
+
             ))}
+
           </div>
+
 
           <h2>
             Total: ₹{total}
           </h2>
 
+
           <textarea
             value={address}
             onChange={(e) =>
-              setAddress(e.target.value)
+              setAddress(
+                e.target.value
+              )
             }
             placeholder="Delivery address"
           />
+
 
           <button
             className="primary"
@@ -740,67 +2194,121 @@ function Cart({ cart, remove, setCart }) {
             Place order
           </button>
 
-          {msg && <p>{msg}</p>}
+
+          {msg && (
+            <p>
+              {msg}
+            </p>
+          )}
+
         </>
       )}
+
     </main>
   );
 }
 
-/* =========================
-   LOGIN / REGISTER
-========================= */
+
+// =========================================================
+// LOGIN / REGISTER
+// =========================================================
 
 function Auth({ mode }) {
-  const nav = useNavigate();
 
-  const [form, setForm] = useState({
-    name: '',
-    email: '',
-    password: ''
-  });
+  const nav =
+    useNavigate();
 
-  const [msg, setMsg] = useState('');
 
-  const submit = async (e) => {
-    e.preventDefault();
+  const [form, setForm] =
+    useState({
+      name: '',
+      email: '',
+      password: ''
+    });
 
-    const res = await fetch(
-      `${API}/auth/${mode}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(form)
+
+  const [msg, setMsg] =
+    useState('');
+
+
+  const submit =
+    async (e) => {
+
+      e.preventDefault();
+
+
+      try {
+
+        const res =
+          await fetch(
+            `${API}/auth/${mode}`,
+            {
+              method: 'POST',
+
+              headers: {
+                'Content-Type':
+                  'application/json'
+              },
+
+              body: JSON.stringify(
+                form
+              )
+            }
+          );
+
+
+        const b =
+          await res.json();
+
+
+        if (!res.ok) {
+
+          setMsg(
+            b.message ||
+            'Authentication failed'
+          );
+
+          return;
+        }
+
+
+        localStorage.setItem(
+          'token',
+          b.token
+        );
+
+
+        setMsg(
+          mode === 'login'
+            ? 'Login successful! 🎉'
+            : 'Account created successfully! 🎉'
+        );
+
+
+        setTimeout(() => {
+          nav('/');
+        }, 1500);
+
+      } catch (error) {
+
+        console.error(
+          'Auth error:',
+          error
+        );
+
+        setMsg(
+          'Something went wrong. Please try again.'
+        );
       }
-    );
+    };
 
-    const b = await res.json();
-
-    if (!res.ok) {
-      return setMsg(b.message);
-    }
-
-    localStorage.setItem(
-  'token',
-  b.token
-);
-
-setMsg(
-  mode === 'login'
-    ? 'Login successful! 🎉'
-    : 'Account created successfully! 🎉'
-);
-
-setTimeout(() => {
-  nav('/');
-}, 1500);
-  };
 
   return (
     <main className="formPage">
-      <form onSubmit={submit}>
+
+      <form
+        onSubmit={submit}
+      >
 
         <h1>
           {mode === 'login'
@@ -808,7 +2316,9 @@ setTimeout(() => {
             : 'Create account'}
         </h1>
 
+
         {mode === 'register' && (
+
           <input
             placeholder="Name"
             value={form.name}
@@ -819,7 +2329,9 @@ setTimeout(() => {
               })
             }
           />
+
         )}
+
 
         <input
           placeholder="Email"
@@ -833,6 +2345,7 @@ setTimeout(() => {
           }
         />
 
+
         <input
           placeholder="Password"
           type="password"
@@ -845,52 +2358,104 @@ setTimeout(() => {
           }
         />
 
-        <button className="primary">
+
+        <button
+          className="primary"
+        >
           {mode === 'login'
             ? 'Login'
             : 'Register'}
         </button>
 
-        {msg && <p>{msg}</p>}
+
+        {msg && (
+          <p>
+            {msg}
+          </p>
+        )}
 
       </form>
+
     </main>
   );
 }
 
-/* =========================
-   ORDERS
-========================= */
+
+// =========================================================
+// ORDERS
+// =========================================================
 
 function Orders() {
-  const [orders, setOrders] = useState([]);
+
+  const [orders, setOrders] =
+    useState([]);
+
 
   useEffect(() => {
-    const token =
-      localStorage.getItem('token');
 
-    if (token) {
-      fetch(`${API}/orders/mine`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      })
-        .then((r) => r.json())
-        .then(setOrders);
+    const token =
+      localStorage.getItem(
+        'token'
+      );
+
+
+    if (!token) {
+      return;
     }
+
+
+    fetch(
+      `${API}/orders/mine`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${token}`
+        }
+      }
+    )
+      .then((r) => r.json())
+      .then((result) => {
+
+        setOrders(
+          Array.isArray(result)
+            ? result
+            : []
+        );
+
+      })
+      .catch((error) =>
+        console.error(
+          'Orders error:',
+          error
+        )
+      );
+
   }, []);
+
 
   return (
     <main>
 
-      <h1>Your orders</h1>
+      <h1>
+        Your orders
+      </h1>
+
 
       {!orders.length ? (
+
         <div className="emptyState">
-          <div>📦</div>
-          <h3>No orders yet</h3>
+
+          <div>
+            📦
+          </div>
+
+          <h3>
+            No orders yet
+          </h3>
+
           <p>
-            Your previous orders will appear here.
+            Your previous orders
+            will appear here.
           </p>
 
           <Link
@@ -899,35 +2464,45 @@ function Orders() {
           >
             Start ordering
           </Link>
+
         </div>
+
       ) : (
+
         orders.map((o) => (
+
           <div
             className="order"
             key={o._id}
           >
+
             <h3>
               {o.restaurant?.name}
             </h3>
 
             <p>
-              ₹{o.total} · {o.status}
+              ₹{o.total} ·{' '}
+              {o.status}
             </p>
 
             <p>
               {o.address}
             </p>
+
           </div>
+
         ))
+
       )}
 
     </main>
   );
 }
 
-/* =========================
-   START APP
-========================= */
+
+// =========================================================
+// START APP
+// =========================================================
 
 createRoot(
   document.getElementById('root')

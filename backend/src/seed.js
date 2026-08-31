@@ -1,6 +1,6 @@
 import 'dotenv/config';
-import mongoose from 'mongoose';
 
+import { connectDB } from './config/db.js';
 import Restaurant from './models/Restaurant.js';
 import MenuItem from './models/MenuItem.js';
 
@@ -10,48 +10,67 @@ const restaurants = [
     cuisine: ['Indian', 'North Indian'],
     rating: 4.5,
     deliveryTime: 30,
-    image: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe',
+    image:
+      'https://images.unsplash.com/photo-1585937421612-70a008356fbe?auto=format&fit=crop&w=800&q=80',
     location: 'Bangalore',
+    latitude: 12.9716,
+    longitude: 77.5946,
     priceForTwo: 500,
     isVeg: true
   },
+
   {
     name: 'Pizza Paradise',
     cuisine: ['Italian', 'Pizza'],
     rating: 4.3,
     deliveryTime: 25,
-    image: 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002',
+    image:
+      'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=800&q=80',
     location: 'Bangalore',
+    latitude: 12.9352,
+    longitude: 77.6245,
     priceForTwo: 600,
     isVeg: false
   },
+
   {
     name: 'Burger House',
     cuisine: ['Burgers', 'Fast Food'],
     rating: 4.4,
     deliveryTime: 20,
-    image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd',
+    image:
+      'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=800&q=80',
     location: 'Bangalore',
+    latitude: 12.9784,
+    longitude: 77.6408,
     priceForTwo: 400,
     isVeg: false
   },
+
   {
     name: 'Dosa Corner',
     cuisine: ['South Indian', 'Breakfast'],
     rating: 4.6,
     deliveryTime: 20,
-    image: 'https://images.unsplash.com/photo-1668236543090-82eba5ee5976',
+    image:
+      'https://images.unsplash.com/photo-1668236543090-82eba5ee5976?auto=format&fit=crop&w=800&q=80',
     location: 'Bangalore',
+    latitude: 12.9981,
+    longitude: 77.5923,
     priceForTwo: 300,
     isVeg: true
   },
+
   {
     name: 'Wok Express',
     cuisine: ['Chinese', 'Asian'],
     rating: 4.2,
     deliveryTime: 35,
-    image: 'https://images.unsplash.com/photo-1512058564366-18510be2db19',
+    image:
+      'https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=800&q=80',
     location: 'Bangalore',
+    latitude: 12.985,
+    longitude: 77.7281,
     priceForTwo: 550,
     isVeg: false
   }
@@ -63,62 +82,83 @@ const menuData = [
     description: 'Creamy tomato gravy with soft paneer',
     price: 220,
     category: 'Main Course',
-    image: 'https://images.unsplash.com/photo-1631452180519-c014fe946bc7',
+    image:
+      'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=800&q=80',
     isVeg: true
   },
+
   {
     name: 'Butter Naan',
     description: 'Soft naan brushed with butter',
     price: 60,
     category: 'Breads',
-    image: 'https://images.unsplash.com/photo-1601050690597-df0568f70950',
+    image:
+      'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=800&q=80',
     isVeg: true
   },
+
   {
     name: 'Margherita Pizza',
     description: 'Classic pizza with tomato, mozzarella and basil',
     price: 299,
     category: 'Pizza',
-    image: 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002',
+    image:
+      'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=800&q=80',
     isVeg: true
   },
+
   {
     name: 'Chicken Burger',
     description: 'Crispy chicken patty with fresh vegetables',
     price: 249,
     category: 'Burgers',
-    image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd',
+    image:
+      'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=800&q=80',
     isVeg: false
   },
+
   {
     name: 'Masala Dosa',
     description: 'Crispy dosa served with potato masala',
     price: 120,
     category: 'South Indian',
-    image: 'https://images.unsplash.com/photo-1668236543090-82eba5ee5976',
+    image:
+      'https://images.unsplash.com/photo-1668236543090-82eba5ee5976?auto=format&fit=crop&w=800&q=80',
     isVeg: true
   },
+
   {
     name: 'Veg Hakka Noodles',
     description: 'Stir-fried noodles with fresh vegetables',
     price: 180,
     category: 'Chinese',
-    image: 'https://images.unsplash.com/photo-1512058564366-18510be2db19',
+    image:
+      'https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=800&q=80',
     isVeg: true
   }
 ];
 
 async function seed() {
   try {
-    await mongoose.connect(process.env.MONGODB_URI);
+    console.log('🌱 Starting database seed...');
 
-    console.log('MongoDB connected');
+    // Use your existing database connection helper
+    await connectDB();
 
+    console.log('✅ MongoDB connected');
+
+    // Clear existing data
     await Restaurant.deleteMany({});
     await MenuItem.deleteMany({});
 
+    console.log('🗑️ Old restaurants and menu items removed');
+
+    // Create restaurants
     const createdRestaurants = await Restaurant.insertMany(restaurants);
 
+    console.log(`🍴 ${createdRestaurants.length} restaurants created`);
+
+    // Connect menu items to restaurants
     const menuItems = [
       {
         ...menuData[0],
@@ -128,18 +168,22 @@ async function seed() {
         ...menuData[1],
         restaurant: createdRestaurants[0]._id
       },
+
       {
         ...menuData[2],
         restaurant: createdRestaurants[1]._id
       },
+
       {
         ...menuData[3],
         restaurant: createdRestaurants[2]._id
       },
+
       {
         ...menuData[4],
         restaurant: createdRestaurants[3]._id
       },
+
       {
         ...menuData[5],
         restaurant: createdRestaurants[4]._id
@@ -148,15 +192,14 @@ async function seed() {
 
     await MenuItem.insertMany(menuItems);
 
-    console.log('✅ Restaurants and menu items added successfully!');
-    console.log(`🍴 Restaurants: ${createdRestaurants.length}`);
-    console.log(`🍽️ Menu items: ${menuItems.length}`);
+    console.log(`🍽️ ${menuItems.length} menu items created`);
 
-    await mongoose.disconnect();
+    console.log('🗺️ Restaurant coordinates added successfully!');
+    console.log('✅ Seed completed successfully!');
+
     process.exit(0);
   } catch (error) {
     console.error('❌ Seed failed:', error.message);
-    await mongoose.disconnect();
     process.exit(1);
   }
 }

@@ -1,6 +1,6 @@
-/* =========================
+/* =========================================================
    GLOBAL
-========================= */
+========================================================= */
 
 * {
   box-sizing: border-box;
@@ -40,9 +40,9 @@ button {
 }
 
 
-/* =========================
+/* =========================================================
    NAVBAR
-========================= */
+========================================================= */
 
 header {
   height: 74px;
@@ -123,9 +123,9 @@ nav a:not(.cart):hover::after {
 }
 
 
-/* =========================
+/* =========================================================
    GENERAL
-========================= */
+========================================================= */
 
 main {
   max-width: 1200px;
@@ -159,9 +159,9 @@ h3 {
 }
 
 
-/* =========================
+/* =========================================================
    HERO
-========================= */
+========================================================= */
 
 .hero {
   min-height: 420px;
@@ -194,11 +194,13 @@ h3 {
   content: "";
   position: absolute;
   inset: 0;
+
   background: linear-gradient(
     135deg,
     rgba(252, 76, 2, 0.1),
     transparent 50%
   );
+
   pointer-events: none;
 }
 
@@ -226,9 +228,9 @@ h3 {
 }
 
 
-/* =========================
+/* =========================================================
    SEARCH
-========================= */
+========================================================= */
 
 .search {
   margin-top: 30px;
@@ -248,6 +250,7 @@ h3 {
 .search:focus-within {
   box-shadow:
     0 14px 40px rgba(0, 0, 0, 0.25);
+
   transform: translateY(-1px);
 }
 
@@ -299,9 +302,9 @@ h3 {
 }
 
 
-/* =========================
+/* =========================================================
    FOOD CATEGORIES
-========================= */
+========================================================= */
 
 .categories {
   padding: 8px 0 15px;
@@ -365,9 +368,9 @@ h3 {
 }
 
 
-/* =========================
+/* =========================================================
    RESTAURANT GRID
-========================= */
+========================================================= */
 
 .grid {
   display: grid;
@@ -433,9 +436,9 @@ h3 {
 }
 
 
-/* =========================
+/* =========================================================
    EMPTY STATE
-========================= */
+========================================================= */
 
 .emptyState {
   text-align: center;
@@ -474,9 +477,9 @@ h3 {
 }
 
 
-/* =========================
+/* =========================================================
    RESTAURANT PAGE
-========================= */
+========================================================= */
 
 .restaurantHead {
   min-height: 240px;
@@ -511,9 +514,9 @@ h3 {
 }
 
 
-/* =========================
+/* =========================================================
    MENU
-========================= */
+========================================================= */
 
 .menu {
   max-width: 850px;
@@ -577,9 +580,9 @@ h3 {
 }
 
 
-/* =========================
+/* =========================================================
    CART
-========================= */
+========================================================= */
 
 .cartList {
   max-width: 750px;
@@ -669,9 +672,9 @@ textarea:focus {
 }
 
 
-/* =========================
+/* =========================================================
    LOGIN / REGISTER
-========================= */
+========================================================= */
 
 .formPage {
   min-height: 72vh;
@@ -729,9 +732,9 @@ textarea:focus {
 }
 
 
-/* =========================
+/* =========================================================
    ORDERS
-========================= */
+========================================================= */
 
 .order {
   padding: 22px;
@@ -763,9 +766,9 @@ textarea:focus {
 }
 
 
-/* =========================
+/* =========================================================
    AI FOOD ASSISTANT
-========================= */
+========================================================= */
 
 .aiBox {
   margin-top: 45px;
@@ -966,9 +969,9 @@ textarea:focus {
 }
 
 
-/* =========================
+/* =========================================================
    ADMIN DASHBOARD
-========================= */
+========================================================= */
 
 .adminPage {
   max-width: 1250px;
@@ -1095,9 +1098,9 @@ textarea:focus {
 }
 
 
-/* =========================
+/* =========================================================
    ADMIN MESSAGES
-========================= */
+========================================================= */
 
 .adminMessage {
   padding: 15px 19px;
@@ -1124,9 +1127,9 @@ textarea:focus {
 }
 
 
-/* =========================
+/* =========================================================
    ADMIN FORMS
-========================= */
+========================================================= */
 
 .restaurantForm {
   max-width: 850px;
@@ -1226,9 +1229,9 @@ textarea:focus {
 }
 
 
-/* =========================
+/* =========================================================
    ADMIN SECTION TITLES
-========================= */
+========================================================= */
 
 .sectionTitle {
   display: flex;
@@ -1257,9 +1260,9 @@ textarea:focus {
 }
 
 
-/* =========================
+/* =========================================================
    ADMIN LISTS
-========================= */
+========================================================= */
 
 .adminRestaurantList {
   display: flex;
@@ -1372,9 +1375,287 @@ textarea:focus {
 }
 
 
-/* =========================
+/* =========================================================
+   RESTAURANT MAP
+========================================================= */
+
+.mapSection {
+  margin: 50px 0;
+  padding: 30px;
+
+  background: #ffffff;
+
+  border-radius: 24px;
+
+  box-shadow:
+    0 10px 35px rgba(0, 0, 0, 0.06);
+}
+
+.mapHeader {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  gap: 20px;
+
+  margin-bottom: 25px;
+}
+
+.mapHeader h2 {
+  margin: 5px 0 8px;
+}
+
+.mapHeader p {
+  margin: 0;
+}
+
+.mapBadge {
+  background: #fff3ed;
+
+  color: #ff5a1f;
+
+  padding: 12px 18px;
+
+  border-radius: 999px;
+
+  font-weight: 700;
+
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+   MAP WRAPPER
+========================================================= */
+
+.mapWrapper {
+  position: relative;
+  width: 100%;
+}
+
+
+/* =========================================================
+   LEAFLET MAP
+========================================================= */
+
+.restaurantMap {
+  width: 100%;
+
+  height: 450px;
+
+  border-radius: 20px;
+
+  overflow: hidden;
+
+  position: relative;
+
+  z-index: 1;
+}
+
+
+/* =========================================================
+   LOCATE ME BUTTON
+========================================================= */
+
+/* =========================================================
+   MAP WRAPPER
+========================================================= */
+
+.mapWrapper {
+  position: relative;
+  width: 100%;
+}
+
+
+/* =========================================================
+   LEAFLET MAP
+========================================================= */
+
+.restaurantMap {
+  width: 100%;
+  height: 450px;
+  border-radius: 20px;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+
+/* =========================================================
+   LOCATE ME BUTTON
+========================================================= */
+
+.locateMeControl {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+
+  z-index: 1000;
+
+  pointer-events: auto;
+}
+
+.locateMeControl button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 145px;
+  height: 46px;
+
+  padding: 10px 16px;
+
+  background: #ffffff;
+  color: #172033;
+
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+
+  font-size: 14px;
+  font-weight: 800;
+
+  cursor: pointer;
+
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.25);
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.locateMeControl button:hover {
+  background: #fff7f2;
+  color: #fc4c02;
+
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 7px 18px rgba(0, 0, 0, 0.28);
+}
+
+.locateMeControl button:active {
+  transform: translateY(0);
+}
+
+.locateMeControl button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+  transform: none;
+}
+
+
+/* =========================================================
+   LOCATION ERROR
+========================================================= */
+
+.locationError {
+  margin-top: 8px;
+
+  width: 260px;
+
+  padding: 10px 12px;
+
+  background: #ffffff;
+
+  border: 1px solid #ffd0c7;
+  border-radius: 8px;
+
+  color: #d93025;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  line-height: 1.4;
+
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.16);
+}
+
+
+/* =========================================================
+   USER LOCATION POPUP
+========================================================= */
+
+.userLocationPopup {
+  min-width: 150px;
+}
+
+.userLocationPopup strong {
+  font-size: 15px;
+}
+
+.userLocationPopup p {
+  margin: 6px 0 0;
+
+  font-size: 13px;
+}
+
+
+/* =========================================================
+   MAP POPUP
+========================================================= */
+
+.mapPopup {
+  width: 190px;
+}
+
+.mapPopup img {
+  width: 100%;
+
+  height: 100px;
+
+  object-fit: cover;
+
+  border-radius: 10px;
+
+  margin-bottom: 8px;
+}
+
+.mapPopup h3 {
+  margin: 5px 0;
+
+  font-size: 16px;
+}
+
+.mapPopup p {
+  margin: 4px 0;
+
+  font-size: 13px;
+}
+
+.mapButton {
+  display: inline-block;
+
+  margin-top: 8px;
+
+  padding: 8px 12px;
+
+  background: #ff5a1f;
+
+  color: white;
+
+  border-radius: 8px;
+
+  text-decoration: none;
+
+  font-weight: 700;
+
+  font-size: 13px;
+}
+
+.mapButton:hover {
+  background: #e94d17;
+}
+
+
+/* =========================================================
    RESPONSIVE
-========================= */
+========================================================= */
 
 @media (max-width: 1000px) {
   .grid {
@@ -1417,6 +1698,41 @@ textarea:focus {
 
   .adminRestaurant {
     align-items: flex-start;
+  }
+}
+
+
+@media (max-width: 700px) {
+  .mapSection {
+    padding: 18px;
+
+    margin: 30px 0;
+  }
+
+  .mapHeader {
+    flex-direction: column;
+
+    align-items: flex-start;
+  }
+
+  .restaurantMap {
+    height: 350px;
+  }
+
+  .locateMeControl {
+    top: 10px;
+
+    right: 10px;
+  }
+
+  .locateMeControl button {
+    min-width: 125px;
+
+    height: 42px;
+
+    padding: 9px 13px;
+
+    font-size: 13px;
   }
 }
 
@@ -1613,5 +1929,13 @@ textarea:focus {
     align-items: flex-start;
 
     flex-direction: column;
+  }
+
+  .locateMeControl button {
+    min-width: 115px;
+
+    font-size: 12px;
+
+    padding: 8px 11px;
   }
 }

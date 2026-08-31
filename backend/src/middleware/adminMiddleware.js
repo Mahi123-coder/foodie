@@ -3,28 +3,54 @@ import User from '../models/User.js';
 
 const adminMiddleware = async (req, res, next) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
+    const authHeader = req.headers.authorization;
 
-    if (!token) {
-      return res.status(401).json({ message: 'Authentication required' });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        message: 'Authentication required'
+      });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const token = authHeader.substring(7);
+
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET
+    );
+
+    if (!decoded.id) {
+      return res.status(401).json({
+        message: 'Invalid token'
+      });
+    }
 
     const user = await User.findById(decoded.id);
 
     if (!user) {
-      return res.status(401).json({ message: 'User not found' });
+      return res.status(401).json({
+        message: 'User not found'
+      });
     }
 
     if (user.role !== 'admin') {
-      return res.status(403).json({ message: 'Admin access required' });
+      return res.status(403).json({
+        message: 'Admin access required'
+      });
     }
 
     req.user = user;
+
     next();
+
   } catch (error) {
-    return res.status(401).json({ message: 'Invalid or expired token' });
+    console.error(
+      'ADMIN AUTH ERROR:',
+      error.message
+    );
+
+    return res.status(401).json({
+      message: 'Invalid or expired token'
+    });
   }
 };
 
