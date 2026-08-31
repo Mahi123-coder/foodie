@@ -82,6 +82,7 @@ router.post('/recommend', async (req, res) => {
     const keywords = [
       'pizza',
       'burger',
+      'salad',
       'indian',
       'north indian',
       'south indian',
@@ -104,6 +105,17 @@ router.post('/recommend', async (req, res) => {
       'fish',
       'thali',
       'meal',
+      'wrap',
+      'roll',
+      'soup',
+      'momos',
+      'tandoori',
+      'kebab',
+      'shawarma',
+      'fries',
+      'ice cream',
+      'coffee',
+      'tea',
     ];
 
     const requestedKeywords = keywords.filter((keyword) =>
@@ -114,6 +126,11 @@ router.post('/recommend', async (req, res) => {
     // =========================================================
     // REQUIRED FOOD KEYWORDS
     // =========================================================
+    //
+    // These are actual food/category searches.
+    // If the user searches one of these, unrelated food
+    // should NOT be returned.
+    //
 
     const requiredFoodKeywords = requestedKeywords.filter(
       (keyword) =>
@@ -166,19 +183,51 @@ router.post('/recommend', async (req, res) => {
         const itemText = `
           ${item.name || ''}
           ${item.description || ''}
-          ${restaurantText}
         `.toLowerCase();
 
 
         // =====================================================
         // REQUIRED FOOD MATCH
         // =====================================================
+        //
+        // IMPORTANT:
+        // Match the actual menu item first.
+        // Do NOT use restaurant cuisine here because
+        // "Indian restaurant" should not make every Indian
+        // dish match a specific food search like "salad".
+        //
 
         const matchedRequiredKeyword =
-          requiredFoodKeywords.find((keyword) =>
-            itemText.includes(keyword)
-          );
+          requiredFoodKeywords.find((keyword) => {
 
+            // Handle singular/plural searches.
+            if (
+              keyword === 'salad' &&
+              (
+                itemText.includes('salad') ||
+                itemText.includes('salads')
+              )
+            ) {
+              return true;
+            }
+
+            if (
+              keyword === 'pizza' &&
+              (
+                itemText.includes('pizza') ||
+                itemText.includes('pizzas')
+              )
+            ) {
+              return true;
+            }
+
+            return itemText.includes(keyword);
+          });
+
+
+        // =====================================================
+        // STRICT FOOD FILTER
+        // =====================================================
 
         if (
           requiredFoodKeywords.length > 0 &&
@@ -266,7 +315,10 @@ router.post('/recommend', async (req, res) => {
         // Spicy
         if (
           text.includes('spicy') &&
-          itemText.includes('spicy')
+          (
+            itemText.includes('spicy') ||
+            itemText.includes('hot')
+          )
         ) {
           score += 8;
         }
@@ -275,7 +327,10 @@ router.post('/recommend', async (req, res) => {
         // Sweet
         if (
           text.includes('sweet') &&
-          itemText.includes('sweet')
+          (
+            itemText.includes('sweet') ||
+            itemText.includes('dessert')
+          )
         ) {
           score += 8;
         }
@@ -284,7 +339,26 @@ router.post('/recommend', async (req, res) => {
         // Healthy
         if (
           text.includes('healthy') &&
-          itemText.includes('healthy')
+          (
+            itemText.includes('healthy') ||
+            itemText.includes('salad') ||
+            itemText.includes('grilled')
+          )
+        ) {
+          score += 8;
+        }
+
+
+        // Breakfast
+        if (
+          text.includes('breakfast') &&
+          (
+            itemText.includes('breakfast') ||
+            itemText.includes('dosa') ||
+            itemText.includes('idli') ||
+            itemText.includes('poha') ||
+            itemText.includes('upma')
+          )
         ) {
           score += 8;
         }
@@ -350,8 +424,6 @@ router.post('/recommend', async (req, res) => {
     // =========================================================
     // REMOVE DUPLICATES
     // =========================================================
-    // Prevents the same restaurant + menu item
-    // from appearing multiple times.
 
     const uniqueRecommendations = [];
 
@@ -389,7 +461,7 @@ router.post('/recommend', async (req, res) => {
 
       return res.json({
         message:
-          "I couldn't find an exact match. Try something like 'pizza under 300', 'vegetarian food under 400', or 'biryani'. 🤔",
+          `I couldn't find an exact match for "${query}". Try another food or preference. 🤔`,
 
         recommendations: [],
       });
@@ -421,23 +493,36 @@ You are a helpful food recommendation assistant.
 The user asked:
 "${query}"
 
-Here are the matching food options:
+Here are the matching food options selected by the application's
+database filtering system:
 
 ${recommendationSummary}
 
-Write ONE short friendly sentence explaining the recommendations.
-Do not invent prices, restaurants, dishes, ratings, or facts.
-Keep it natural and concise.
+Write ONE short friendly sentence explaining why these options
+are suitable for the user's request.
+
+IMPORTANT:
+- Do not invent any information.
+- Do not mention dishes that are not in the list.
+- Do not add restaurants that are not in the list.
+- Do not add prices that are not in the list.
+- Do not recommend additional food.
+- Keep it natural and concise.
 `;
 
 
         const response =
           await ai.models.generateContent({
-           model: 'gemini-3.6-flash',
+            model: 'gemini-3.6-flash',
             contents: prompt,
           });
-          console.log('GEMINI RESPONSE:', response.text);
- 
+
+
+        console.log(
+          'GEMINI RESPONSE:',
+          response.text
+        );
+
 
         aiMessage =
           response.text?.trim() || null;
@@ -564,7 +649,10 @@ function buildReason({
 
   if (
     requestedKeywords.includes('spicy') &&
-    description.includes('spicy')
+    (
+      description.includes('spicy') ||
+      description.includes('hot')
+    )
   ) {
 
     reasons.push(
@@ -575,7 +663,10 @@ function buildReason({
 
   if (
     requestedKeywords.includes('sweet') &&
-    description.includes('sweet')
+    (
+      description.includes('sweet') ||
+      description.includes('dessert')
+    )
   ) {
 
     reasons.push(
@@ -586,7 +677,11 @@ function buildReason({
 
   if (
     requestedKeywords.includes('healthy') &&
-    description.includes('healthy')
+    (
+      description.includes('healthy') ||
+      description.includes('salad') ||
+      description.includes('grilled')
+    )
   ) {
 
     reasons.push(
