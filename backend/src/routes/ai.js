@@ -8,46 +8,70 @@ const router = Router();
 
 
 // =============================================================
+// GEMINI AI
+// =============================================================
+
+function getGeminiAI() {
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey || !apiKey.trim()) {
+    return null;
+  }
+
+  return new GoogleGenAI({
+    apiKey: apiKey.trim(),
+  });
+}
+
+
+// =============================================================
 // RECOMMENDATION ROUTE
 // =============================================================
 
 router.post('/recommend', async (req, res) => {
   try {
-    // =========================================================
-    // GET GEMINI API KEY AT REQUEST TIME
-    // =========================================================
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    // ---------------------------------------------------------
+    // GET QUERY
+    // ---------------------------------------------------------
 
-    console.log(
-      'AI recommend request - Gemini API key configured:',
-      Boolean(apiKey)
-    );
+    const { query } = req.body;
 
-    if (!apiKey) {
-      return res.status(500).json({
-        message:
-          'Gemini AI is not configured on the backend. Please check GEMINI_API_KEY in Render Environment Variables.',
+    if (
+      typeof query !== 'string' ||
+      !query.trim()
+    ) {
+      return res.status(400).json({
+        message: 'Please tell me what you are looking for.',
         recommendations: [],
       });
     }
 
-    // Create Gemini client AFTER reading environment variable
-    const ai = new GoogleGenAI({
-      apiKey,
-    });
+
+    // ---------------------------------------------------------
+    // GET GEMINI
+    // ---------------------------------------------------------
+
+    const ai = getGeminiAI();
+
+    console.log(
+      'AI recommendation request received'
+    );
+
+    console.log(
+      'Gemini API key available:',
+      Boolean(process.env.GEMINI_API_KEY)
+    );
 
 
-    // =========================================================
-    // GET USER QUERY
-    // =========================================================
+    if (!ai) {
+      console.error(
+        'GEMINI_API_KEY is missing inside ai.js'
+      );
 
-    const { query } = req.body;
-
-    if (!query || !query.trim()) {
-      return res.status(400).json({
+      return res.status(500).json({
         message:
-          'Please tell me what you are looking for.',
+          'Gemini AI is not configured on the backend. Please check GEMINI_API_KEY in Render Environment Variables.',
         recommendations: [],
       });
     }
@@ -70,20 +94,26 @@ router.post('/recommend', async (req, res) => {
 
 
     // =========================================================
-    // BUILD AVAILABLE FOOD DATABASE
+    // CREATE AVAILABLE FOOD DATABASE
     // =========================================================
 
     const availableFoods = [];
 
+
     for (const restaurant of restaurants) {
-      const restaurantMenu = menuItems.filter(
-        (item) =>
-          String(item.restaurant) ===
-          String(restaurant._id)
-      );
+
+      const restaurantMenu =
+        menuItems.filter(
+          (item) =>
+            String(item.restaurant) ===
+            String(restaurant._id)
+        );
+
 
       for (const item of restaurantMenu) {
+
         availableFoods.push({
+
           restaurantId:
             String(restaurant._id),
 
@@ -122,8 +152,11 @@ router.post('/recommend', async (req, res) => {
 
           image:
             item.image || null,
+
         });
+
       }
+
     }
 
 
@@ -132,17 +165,21 @@ router.post('/recommend', async (req, res) => {
     // =========================================================
 
     if (availableFoods.length === 0) {
+
       return res.json({
+
         message:
           'There are no menu items available yet. Please add some dishes from the admin panel. 🍽️',
 
         recommendations: [],
+
       });
+
     }
 
 
     // =========================================================
-    // CREATE DATABASE STRING
+    // FOOD DATABASE
     // =========================================================
 
     const foodDatabase =
@@ -161,19 +198,18 @@ router.post('/recommend', async (req, res) => {
 You are the AI food recommendation engine for a restaurant
 ordering application.
 
-The user is asking:
+USER REQUEST:
+"${query.trim()}"
 
-"${query}"
+You have access to the following restaurants and menu items
+from the application's database.
 
-You have been given the complete list of restaurants and
-menu items currently available in the application's database.
-
-Your job is to understand the user's request and select the
-best matching menu items from this database.
+DATABASE:
+${foodDatabase}
 
 IMPORTANT RULES:
 
-1. ONLY select menu items that appear in the database below.
+1. ONLY recommend menu items that exist in the DATABASE.
 
 2. NEVER invent a restaurant.
 
@@ -183,54 +219,64 @@ IMPORTANT RULES:
 
 5. NEVER invent a rating.
 
-6. NEVER select a food item only because the restaurant's
-   cuisine sounds similar.
+6. NEVER create IDs.
 
-7. If the user asks for salad, select actual menu items
-   whose name or description indicates salad.
+7. Use the exact menuItemId and restaurantId from the DATABASE.
 
-8. If the user asks for pizza, select actual pizza items.
+8. The menu item must actually belong to the selected restaurant.
 
-9. If the user asks for chicken, select actual menu items
-   whose name or description indicates chicken.
+9. Prefer exact menu-item matches.
 
-10. If the user asks for vegetarian food, select items
+10. Do not recommend an item only because the restaurant
+    cuisine sounds appropriate.
+
+11. If the user asks for chicken, recommend actual menu items
+    whose name or description indicates chicken.
+
+12. If the user asks for pizza, recommend actual pizza items.
+
+13. If the user asks for burgers, recommend actual burger items.
+
+14. If the user asks for vegetarian food, only recommend items
     where isVeg is true.
 
-11. If the user asks for non-vegetarian food, select items
+15. If the user asks for non-vegetarian food, recommend items
     where isVeg is false.
 
-12. Respect explicit budget requirements.
+16. Respect explicit price requirements.
 
-13. Understand natural language preferences such as:
+17. Understand natural language preferences such as:
     healthy
     spicy
     sweet
     filling
     light
     breakfast
+    lunch
     dinner
     vegetarian
     non vegetarian
     cheap
     expensive
-    under a particular price
 
-14. Prefer exact menu-item matches over generic restaurant
-    cuisine matches.
+18. Do not assume a dish is healthy unless its name or
+    description provides reasonable evidence.
 
-15. Return up to 5 best recommendations.
+19. Do not assume a dish is spicy unless its name or
+    description provides reasonable evidence.
 
-16. If there are no suitable matches, return an empty array.
+20. Return at most 5 recommendations.
 
-17. Do not return duplicate menu items.
+21. Do not return duplicate menu items.
 
-18. The reason must explain why the selected item matches
+22. If nothing matches, return an empty recommendations array.
+
+23. The reason must briefly explain why the dish matches
     the user's request.
 
-19. Return ONLY valid JSON.
+24. Return ONLY valid JSON.
 
-The JSON must have exactly this structure:
+Return EXACTLY this structure:
 
 {
   "recommendations": [
@@ -240,120 +286,148 @@ The JSON must have exactly this structure:
       "reason": "Short explanation"
     }
   ],
-  "message": "One short friendly sentence"
+  "message": "Short friendly sentence"
 }
-
-DATABASE:
-
-${foodDatabase}
 `;
 
 
     // =========================================================
-    // CALL GEMINI
+    // CALL GEMINI 3.6 FLASH
     // =========================================================
 
     let response;
 
     try {
-      console.log(
-        'Calling Gemini model: gemini-3.6-flash'
-      );
 
       response =
         await ai.models.generateContent({
+
           model: 'gemini-3.6-flash',
+
           contents: prompt,
+
         });
 
     } catch (geminiError) {
+
       console.error(
-        'Gemini API error:',
+        'Gemini API request failed:'
+      );
+
+      console.error(
         geminiError
       );
 
       return res.status(500).json({
+
         message:
-          geminiError?.message ||
           'Gemini AI could not process your request right now. Please try again.',
 
         recommendations: [],
+
       });
+
     }
 
 
     // =========================================================
-    // GET GEMINI RESPONSE TEXT
+    // GET RESPONSE TEXT
     // =========================================================
 
     const responseText =
-      response?.text?.trim();
+      response.text?.trim();
+
 
     console.log(
-      'GEMINI RAW RESPONSE:',
+      'Gemini response received:',
       responseText
     );
 
 
     if (!responseText) {
+
       return res.status(500).json({
+
         message:
           'Gemini returned an empty response.',
 
         recommendations: [],
+
       });
+
     }
 
 
     // =========================================================
-    // CLEAN GEMINI JSON
+    // PARSE JSON
     // =========================================================
 
     let aiResult;
 
+
     try {
-      let cleanText = responseText;
 
-      // Remove ```json
-      if (cleanText.startsWith('```json')) {
-        cleanText = cleanText
-          .replace(/^```json\s*/i, '')
-          .replace(/\s*```$/i, '')
-          .trim();
+      let cleanText =
+        responseText.trim();
+
+
+      // Remove ```json ... ``` if returned
+
+      if (
+        cleanText.startsWith('```')
+      ) {
+
+        cleanText =
+          cleanText
+            .replace(
+              /^```json\s*/i,
+              ''
+            )
+            .replace(
+              /^```\s*/i,
+              ''
+            )
+            .replace(
+              /\s*```$/i,
+              ''
+            )
+            .trim();
+
       }
 
-      // Remove generic ```
-      else if (cleanText.startsWith('```')) {
-        cleanText = cleanText
-          .replace(/^```\s*/i, '')
-          .replace(/\s*```$/i, '')
-          .trim();
-      }
 
-      aiResult = JSON.parse(cleanText);
+      aiResult =
+        JSON.parse(
+          cleanText
+        );
 
     } catch (parseError) {
+
       console.error(
         'Gemini JSON parse error:',
         parseError
       );
 
       console.error(
-        'Gemini response:',
+        'Raw Gemini response:',
         responseText
       );
 
+
       return res.status(500).json({
+
         message:
           'Gemini returned an invalid recommendation response. Please try again.',
 
         recommendations: [],
+
       });
+
     }
 
 
     // =========================================================
-    // VALIDATE GEMINI RESPONSE
+    // VALIDATE RESPONSE
     // =========================================================
 
     if (
@@ -362,67 +436,74 @@ ${foodDatabase}
         aiResult.recommendations
       )
     ) {
+
       return res.json({
+
         message:
           'I could not find suitable recommendations for your request. 🤔',
 
         recommendations: [],
+
       });
+
     }
 
 
     // =========================================================
-    // VALIDATE DATABASE IDS
+    // VALIDATE RECOMMENDATIONS AGAINST MONGODB
     // =========================================================
 
     const validatedRecommendations = [];
 
-    const seenMenuItems = new Set();
+    const seenMenuItems =
+      new Set();
+
 
     for (
-      const aiRecommendation
+      const recommendation
       of aiResult.recommendations
     ) {
+
       if (
-        !aiRecommendation ||
-        !aiRecommendation.menuItemId ||
-        !aiRecommendation.restaurantId
+        !recommendation ||
+        !recommendation.menuItemId ||
+        !recommendation.restaurantId
       ) {
         continue;
       }
 
 
-      // =======================================================
-      // FIND REAL MENU ITEM
-      // =======================================================
+      // -------------------------------------------------------
+      // FIND MENU ITEM
+      // -------------------------------------------------------
 
       const menuItem =
         menuItems.find(
           (item) =>
             String(item._id) ===
             String(
-              aiRecommendation.menuItemId
+              recommendation.menuItemId
             )
         );
 
 
-      // =======================================================
-      // FIND REAL RESTAURANT
-      // =======================================================
+      // -------------------------------------------------------
+      // FIND RESTAURANT
+      // -------------------------------------------------------
 
       const restaurant =
         restaurants.find(
-          (r) =>
-            String(r._id) ===
+          (item) =>
+            String(item._id) ===
             String(
-              aiRecommendation.restaurantId
+              recommendation.restaurantId
             )
         );
 
 
-      // =======================================================
+      // -------------------------------------------------------
       // INVALID IDS
-      // =======================================================
+      // -------------------------------------------------------
 
       if (
         !menuItem ||
@@ -432,9 +513,9 @@ ${foodDatabase}
       }
 
 
-      // =======================================================
-      // VERIFY MENU ITEM BELONGS TO RESTAURANT
-      // =======================================================
+      // -------------------------------------------------------
+      // VERIFY RELATIONSHIP
+      // -------------------------------------------------------
 
       if (
         String(menuItem.restaurant) !==
@@ -444,12 +525,13 @@ ${foodDatabase}
       }
 
 
-      // =======================================================
-      // PREVENT DUPLICATES
-      // =======================================================
+      // -------------------------------------------------------
+      // DUPLICATE CHECK
+      // -------------------------------------------------------
 
       const menuKey =
         String(menuItem._id);
+
 
       if (
         seenMenuItems.has(menuKey)
@@ -457,14 +539,18 @@ ${foodDatabase}
         continue;
       }
 
-      seenMenuItems.add(menuKey);
+
+      seenMenuItems.add(
+        menuKey
+      );
 
 
-      // =======================================================
+      // -------------------------------------------------------
       // RETURN REAL DATABASE DATA
-      // =======================================================
+      // -------------------------------------------------------
 
       validatedRecommendations.push({
+
         restaurantId:
           restaurant._id,
 
@@ -505,9 +591,21 @@ ${foodDatabase}
           menuItem.isVeg,
 
         reason:
-          aiRecommendation.reason ||
-          'This dish matches your request.',
+          typeof recommendation.reason === 'string'
+            ? recommendation.reason
+            : 'This dish matches your request.',
+
       });
+
+
+      // Maximum 5
+
+      if (
+        validatedRecommendations.length >= 5
+      ) {
+        break;
+      }
+
     }
 
 
@@ -518,52 +616,54 @@ ${foodDatabase}
     if (
       validatedRecommendations.length === 0
     ) {
+
       return res.json({
+
         message:
-          `I couldn't find a suitable match for "${query}". Try another food or preference. 🤔`,
+          `I couldn't find a suitable match for "${query.trim()}". Try another food or preference. 🤔`,
 
         recommendations: [],
+
       });
+
     }
 
 
     // =========================================================
-    // LIMIT TO 5
-    // =========================================================
-
-    const topRecommendations =
-      validatedRecommendations.slice(
-        0,
-        5
-      );
-
-
-    // =========================================================
-    // FINAL RESPONSE
+    // SUCCESS
     // =========================================================
 
     return res.json({
+
       message:
-        aiResult.message ||
-        `I found ${topRecommendations.length} great options for you! 🍽️`,
+        typeof aiResult.message === 'string' &&
+        aiResult.message.trim()
+          ? aiResult.message
+          : `I found ${validatedRecommendations.length} great options for you! 🍽️`,
 
       recommendations:
-        topRecommendations,
+        validatedRecommendations,
+
     });
 
   } catch (error) {
+
     console.error(
-      'AI recommendation error:',
+      'AI recommendation route error:',
       error
     );
 
+
     return res.status(500).json({
+
       message:
-        error?.message ||
+        error.message ||
         'Could not generate recommendations.',
 
       recommendations: [],
+
     });
+
   }
 });
 
