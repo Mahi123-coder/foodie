@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-
 import {
   BrowserRouter,
   Routes,
@@ -9,136 +8,28 @@ import {
   useNavigate,
   useParams
 } from 'react-router-dom';
-
-import {
-  MapContainer,
-  TileLayer,
-  Marker,
-  Popup,
-  useMap,
-  useMapEvents
-} from 'react-leaflet';
-
-import L from 'leaflet';
-
-import 'leaflet/dist/leaflet.css';
-import './styles.css';
-
-import Admin from './Admin.jsx';
-
-
-// =========================================================
-// API
-// =========================================================
+import './style.css';
 
 const API = 'http://localhost:5000/api';
-
-
-// =========================================================
-// DEFAULT IMAGE
-// =========================================================
 
 const img = (seed) =>
   `https://images.unsplash.com/photo-${seed}?auto=format&fit=crop&w=800&q=80`;
 
 
-// =========================================================
-// DEFAULT FOOD IMAGE
-// =========================================================
-
-const DEFAULT_FOOD_IMAGE =
-  'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=800&q=80';
-
-
-// =========================================================
-// IMAGE HELPER
-// =========================================================
-
-const getImage = (image, fallback = DEFAULT_FOOD_IMAGE) => {
-  if (image && typeof image === 'string' && image.trim()) {
-    return image;
-  }
-
-  return fallback;
-};
-
-
-// =========================================================
-// LEAFLET MARKER FIX
-// =========================================================
-
-delete L.Icon.Default.prototype._getIconUrl;
-
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl:
-    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-
-  iconUrl:
-    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-
-  shadowUrl:
-    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png'
-});
-
-
-// =========================================================
-// DISTANCE CALCULATION
-// HAVERSINE FORMULA
-// =========================================================
-
-function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371;
-
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-
-  const a =
-    Math.sin(dLat / 2) *
-      Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-
-  const c =
-    2 *
-    Math.atan2(
-      Math.sqrt(a),
-      Math.sqrt(1 - a)
-    );
-
-  return R * c;
-}
-
-
-// =========================================================
-// APP
-// =========================================================
+/* =========================
+   APP
+========================= */
 
 function App() {
-  const [cart, setCart] = useState(() => {
-    try {
-      return JSON.parse(
-        localStorage.getItem('cart') || '[]'
-      );
-    } catch {
-      return [];
-    }
-  });
+  const [cart, setCart] = useState(() =>
+    JSON.parse(localStorage.getItem('cart') || '[]')
+  );
 
   useEffect(() => {
-    localStorage.setItem(
-      'cart',
-      JSON.stringify(cart)
-    );
+    localStorage.setItem('cart', JSON.stringify(cart));
   }, [cart]);
 
-
-  // =======================================================
-  // ADD TO CART
-  // =======================================================
-
-  const add = (item, restaurant) => {
+  const add = (item, restaurant) =>
     setCart((current) => {
       const existing = current.find(
         (i) => i.menuItem === item._id
@@ -161,53 +52,38 @@ function App() {
           menuItem: item._id,
           name: item.name,
           price: item.price,
-          image: item.image || DEFAULT_FOOD_IMAGE,
           quantity: 1,
           restaurant
         }
       ];
     });
-  };
 
-
-  // =======================================================
-  // REMOVE FROM CART
-  // =======================================================
-
-  const remove = (id) => {
+  const remove = (id) =>
     setCart((current) =>
-      current.flatMap((i) => {
-        if (i.menuItem !== id) {
-          return [i];
-        }
-
-        if (i.quantity > 1) {
-          return [
-            {
-              ...i,
-              quantity: i.quantity - 1
-            }
-          ];
-        }
-
-        return [];
-      })
+      current.flatMap((i) =>
+        i.menuItem === id
+          ? i.quantity > 1
+            ? [
+                {
+                  ...i,
+                  quantity: i.quantity - 1
+                }
+              ]
+            : []
+          : [i]
+      )
     );
-  };
-
 
   return (
     <>
       <Header
         count={cart.reduce(
-          (sum, item) =>
-            sum + item.quantity,
+          (s, i) => s + i.quantity,
           0
         )}
       />
 
       <Routes>
-
         <Route
           path="/"
           element={<Home />}
@@ -233,37 +109,27 @@ function App() {
 
         <Route
           path="/login"
-          element={
-            <Auth mode="login" />
-          }
+          element={<Auth mode="login" />}
         />
 
         <Route
           path="/register"
-          element={
-            <Auth mode="register" />
-          }
+          element={<Auth mode="register" />}
         />
 
         <Route
           path="/orders"
           element={<Orders />}
         />
-
-        <Route
-          path="/admin"
-          element={<Admin />}
-        />
-
       </Routes>
     </>
   );
 }
 
 
-// =========================================================
-// HEADER
-// =========================================================
+/* =========================
+   HEADER
+========================= */
 
 function Header({ count }) {
   return (
@@ -276,7 +142,6 @@ function Header({ count }) {
       </Link>
 
       <nav>
-
         <Link to="/">
           Home
         </Link>
@@ -299,931 +164,56 @@ function Header({ count }) {
         >
           Cart ({count})
         </Link>
-
       </nav>
     </header>
   );
 }
 
 
-// =========================================================
-// LOCATION CONTROL FOR MAP
-// =========================================================
-
-function LocateMeControl({
-  onLocationFound,
-  selectedLocation
-}) {
-  const map = useMap();
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [error, setError] =
-    useState('');
-
-
-  const locateUser = () => {
-    if (!navigator.geolocation) {
-      setError(
-        'Geolocation is not supported by your browser.'
-      );
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat =
-          position.coords.latitude;
-
-        const lng =
-          position.coords.longitude;
-
-        const location = {
-          lat,
-          lng
-        };
-
-        onLocationFound(location);
-
-        map.flyTo(
-          [lat, lng],
-          14,
-          {
-            animate: true,
-            duration: 1.5
-          }
-        );
-
-        setLoading(false);
-      },
-
-      (error) => {
-        setLoading(false);
-
-        if (error.code === 1) {
-          setError(
-            'Location permission was denied. Please allow location access.'
-          );
-        } else if (error.code === 2) {
-          setError(
-            'Your location could not be determined.'
-          );
-        } else if (error.code === 3) {
-          setError(
-            'Location request timed out. Please try again.'
-          );
-        } else {
-          setError(
-            'Unable to get your location.'
-          );
-        }
-      },
-
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-      }
-    );
-  };
-
-
-  return (
-    <>
-      <div className="locateMeControl">
-
-        <button
-          type="button"
-          onClick={locateUser}
-          disabled={loading}
-        >
-          📍{' '}
-          {loading
-            ? 'Locating...'
-            : 'Use My Location'}
-        </button>
-
-        {error && (
-          <div className="locationError">
-            {error}
-          </div>
-        )}
-
-      </div>
-
-
-      {selectedLocation && (
-        <Marker
-          position={[
-            selectedLocation.lat,
-            selectedLocation.lng
-          ]}
-        >
-          <Popup>
-            <div className="userLocationPopup">
-
-              <strong>
-                📍 You are here
-              </strong>
-
-              <p>
-                Restaurants around
-                your location
-              </p>
-
-            </div>
-          </Popup>
-        </Marker>
-      )}
-    </>
-  );
-}
-
-
-// =========================================================
-// MAP CLICK LOCATION PICKER
-// =========================================================
-
-function MapLocationPicker({
-  onLocationFound
-}) {
-  useMapEvents({
-    click(e) {
-      const location = {
-        lat: e.latlng.lat,
-        lng: e.latlng.lng
-      };
-
-      onLocationFound(location);
-    }
-  });
-
-  return null;
-}
-
-
-// =========================================================
-// RESTAURANT MAP
-// =========================================================
-
-function RestaurantMap({
-  restaurants,
-  selectedLocation,
-  setSelectedLocation
-}) {
-  const validRestaurants =
-    restaurants.filter(
-      (restaurant) => {
-        const lat =
-          Number(
-            restaurant.latitude
-          );
-
-        const lng =
-          Number(
-            restaurant.longitude
-          );
-
-        return (
-          Number.isFinite(lat) &&
-          Number.isFinite(lng)
-        );
-      }
-    );
-
-
-  return (
-    <section className="mapSection">
-
-      <div className="mapHeader">
-
-        <div>
-
-          <p className="eyebrow">
-            FIND YOUR FOOD
-          </p>
-
-          <h2>
-            Restaurants near you 📍
-          </h2>
-
-          <p>
-            Use your location or click
-            anywhere on the map to find
-            nearby restaurants.
-          </p>
-
-        </div>
-
-        <div className="mapBadge">
-          📍 {validRestaurants.length}{' '}
-          locations
-        </div>
-
-      </div>
-
-
-      {validRestaurants.length === 0 ? (
-
-        <div className="emptyState">
-
-          <div>
-            📍
-          </div>
-
-          <h3>
-            Restaurant locations unavailable
-          </h3>
-
-          <p>
-            Make sure your restaurants have
-            latitude and longitude values.
-          </p>
-
-        </div>
-
-      ) : (
-
-        <div className="mapWrapper">
-
-          <MapContainer
-            center={[
-              12.9716,
-              77.5946
-            ]}
-            zoom={12}
-            scrollWheelZoom={true}
-            className="restaurantMap"
-          >
-
-            <TileLayer
-              attribution="&copy; OpenStreetMap contributors"
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-
-
-            <LocateMeControl
-              onLocationFound={
-                setSelectedLocation
-              }
-              selectedLocation={
-                selectedLocation
-              }
-            />
-
-
-            <MapLocationPicker
-              onLocationFound={
-                setSelectedLocation
-              }
-            />
-
-
-            {validRestaurants.map(
-              (restaurant) => {
-
-                const restaurantLat =
-                  Number(
-                    restaurant.latitude
-                  );
-
-                const restaurantLng =
-                  Number(
-                    restaurant.longitude
-                  );
-
-
-                let distance = null;
-
-
-                if (selectedLocation) {
-                  distance =
-                    calculateDistance(
-                      selectedLocation.lat,
-                      selectedLocation.lng,
-                      restaurantLat,
-                      restaurantLng
-                    );
-                }
-
-
-                return (
-                  <Marker
-                    key={restaurant._id}
-                    position={[
-                      restaurantLat,
-                      restaurantLng
-                    ]}
-                  >
-
-                    <Popup>
-
-                      <div className="mapPopup">
-
-                        <img
-                          src={getImage(
-                            restaurant.image,
-                            img(
-                              '1552566626-52f8b828add9'
-                            )
-                          )}
-                          alt={restaurant.name}
-                        />
-
-                        <h3>
-                          {restaurant.name}
-                        </h3>
-
-                        <p>
-                          ⭐{' '}
-                          {restaurant.rating}
-                        </p>
-
-                        <p>
-                          {restaurant.cuisine?.join(
-                            ', '
-                          )}
-                        </p>
-
-                        {distance !== null && (
-                          <p>
-                            📍{' '}
-                            {distance.toFixed(
-                              1
-                            )}{' '}
-                            km away
-                          </p>
-                        )}
-
-                        <p>
-                          ⏱️{' '}
-                          {
-                            restaurant.deliveryTime
-                          }{' '}
-                          min
-                        </p>
-
-                        <Link
-                          to={`/restaurant/${restaurant._id}`}
-                          className="mapButton"
-                        >
-                          View Restaurant
-                        </Link>
-
-                      </div>
-
-                    </Popup>
-
-                  </Marker>
-                );
-              }
-            )}
-
-          </MapContainer>
-
-        </div>
-      )}
-
-    </section>
-  );
-}
-
-
-// =========================================================
-// HOME
-// =========================================================
+/* =========================
+   HOME
+========================= */
 
 function Home() {
+  const [data, setData] = useState([]);
+  const [q, setQ] = useState('');
 
-  const [data, setData] =
-    useState([]);
-
-  const [q, setQ] =
-    useState('');
-
-  const [aiQuery, setAiQuery] =
-    useState('');
-
-  const [aiResults, setAiResults] =
-    useState([]);
-
-  const [aiMessage, setAiMessage] =
-    useState('');
-
-
-  // LOCATION
-
-  const [
-    selectedLocation,
-    setSelectedLocation
-  ] = useState(null);
-
-  const [radius, setRadius] =
-    useState(10);
-
-  const [
-    locationMessage,
-    setLocationMessage
-  ] = useState(
-    'Use your location to discover nearby restaurants 📍'
-  );
-
-
-  // =======================================================
-  // LOAD RESTAURANTS
-  // =======================================================
-
-  const load = async (
-    searchTerm = q
-  ) => {
-
+  const load = async (searchTerm = q) => {
     try {
-
-      const response =
-        await fetch(
-          `${API}/restaurants?search=${encodeURIComponent(
-            searchTerm
-          )}`
-        );
-
-
-      if (!response.ok) {
-        throw new Error(
-          'Failed to load restaurants'
-        );
-      }
-
-
-      const result =
-        await response.json();
-
-
-      setData(
-        Array.isArray(result)
-          ? result
-          : []
+      const response = await fetch(
+        `${API}/restaurants?search=${encodeURIComponent(
+          searchTerm
+        )}`
       );
 
-    } catch (error) {
+      const result = await response.json();
 
+      setData(result);
+    } catch (error) {
       console.error(
         'Failed to load restaurants:',
         error
       );
-
-      setData([]);
-
     }
   };
-
 
   useEffect(() => {
     load('');
   }, []);
 
-
-  // =======================================================
-  // CATEGORY
-  // =======================================================
-
-  const chooseCategory =
-    async (category) => {
-
-      setQ(category);
-
-      await load(category);
-    };
-
-
-  // =======================================================
-  // USE MY LOCATION
-  // =======================================================
-
-  const useMyLocation = () => {
-
-    if (!navigator.geolocation) {
-
-      setLocationMessage(
-        'Geolocation is not supported by your browser.'
-      );
-
-      return;
-    }
-
-
-    setLocationMessage(
-      'Finding your location... 📍'
-    );
-
-
-    navigator.geolocation.getCurrentPosition(
-
-      (position) => {
-
-        const location = {
-          lat:
-            position.coords.latitude,
-
-          lng:
-            position.coords.longitude
-        };
-
-
-        setSelectedLocation(
-          location
-        );
-
-
-        setLocationMessage(
-          'Showing restaurants near your location 📍'
-        );
-
-      },
-
-
-      (error) => {
-
-        console.error(
-          'Geolocation error:',
-          error
-        );
-
-
-        if (error.code === 1) {
-
-          setLocationMessage(
-            'Location permission denied. Please allow it in your browser.'
-          );
-
-        } else if (error.code === 2) {
-
-          setLocationMessage(
-            'Could not determine your location.'
-          );
-
-        } else if (error.code === 3) {
-
-          setLocationMessage(
-            'Location request timed out. Try again.'
-          );
-
-        } else {
-
-          setLocationMessage(
-            'Unable to get your location.'
-          );
-        }
-      },
-
-
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-      }
-    );
+  const chooseCategory = async (
+    category
+  ) => {
+    setQ(category);
+    await load(category);
   };
-
-
-  // =======================================================
-  // CLEAR LOCATION
-  // =======================================================
-
-  const clearLocation = () => {
-
-    setSelectedLocation(null);
-
-    setLocationMessage(
-      'Showing all restaurants 🌎'
-    );
-  };
-
-
-  // =======================================================
-  // LOCATION BASED RESTAURANTS
-  // =======================================================
-
-  const nearbyRestaurants =
-    data
-
-      .map((restaurant) => {
-
-        const lat =
-          Number(
-            restaurant.latitude
-          );
-
-        const lng =
-          Number(
-            restaurant.longitude
-          );
-
-
-        if (
-          !selectedLocation ||
-          !Number.isFinite(lat) ||
-          !Number.isFinite(lng)
-        ) {
-
-          return {
-            ...restaurant,
-            distance: null
-          };
-        }
-
-
-        const distance =
-          calculateDistance(
-            selectedLocation.lat,
-            selectedLocation.lng,
-            lat,
-            lng
-          );
-
-
-        return {
-          ...restaurant,
-          distance
-        };
-      })
-
-
-      .filter((restaurant) => {
-
-        if (
-          !selectedLocation ||
-          restaurant.distance === null
-        ) {
-          return true;
-        }
-
-
-        return (
-          restaurant.distance <=
-          radius
-        );
-      })
-
-
-      .sort((a, b) => {
-
-        if (
-          a.distance === null &&
-          b.distance === null
-        ) {
-          return 0;
-        }
-
-
-        if (
-          a.distance === null
-        ) {
-          return 1;
-        }
-
-
-        if (
-          b.distance === null
-        ) {
-          return -1;
-        }
-
-
-        return (
-          a.distance -
-          b.distance
-        );
-      });
-
-
-  // =======================================================
-  // AI FOOD ASSISTANT
-  // =======================================================
-
-  const askAI = async () => {
-
-    const query =
-      aiQuery.trim();
-
-
-    if (!query) {
-
-      setAiMessage(
-        'Tell me what you are craving 😋'
-      );
-
-      setAiResults([]);
-
-      return;
-    }
-
-
-    try {
-
-      setAiMessage(
-        'Foodie AI is thinking... 🤖✨'
-      );
-
-      setAiResults([]);
-
-
-      const response =
-        await fetch(
-          `${API}/ai/recommend`,
-          {
-            method: 'POST',
-
-            headers: {
-              'Content-Type':
-                'application/json'
-            },
-
-            body: JSON.stringify({
-              query
-            })
-          }
-        );
-
-
-      const result =
-        await response.json();
-
-
-      if (!response.ok) {
-
-        throw new Error(
-          result.message ||
-          'AI recommendation failed'
-        );
-      }
-
-
-      setAiMessage(
-        result.message ||
-        'Here are some recommendations for you! 🍽️'
-      );
-
-
-      const recommendations =
-        result.recommendations || [];
-
-
-      const restaurantResponse =
-        await fetch(
-          `${API}/restaurants`
-        );
-
-
-      const restaurants =
-        await restaurantResponse.json();
-
-
-      const formattedResults =
-        recommendations
-
-          .map(
-            (recommendation) => {
-
-              const restaurant =
-                restaurants.find(
-                  (r) =>
-                    String(r._id) ===
-                    String(
-                      recommendation.restaurantId
-                    )
-                );
-
-
-              if (!restaurant) {
-                return null;
-              }
-
-
-              return {
-                ...restaurant,
-
-                aiMenuItem:
-                  recommendation.menuItemName,
-
-                aiMenuItemId:
-                  recommendation.menuItemId,
-
-                aiPrice:
-                  recommendation.price,
-
-                aiReason:
-                  recommendation.reason
-              };
-            }
-          )
-
-          .filter(Boolean);
-
-
-      /*
-       * =====================================================
-       * GET MENU ITEM IMAGES FOR AI RESULTS
-       * =====================================================
-       *
-       * Your backend recommendation response gives us
-       * menuItemId, but the restaurant list normally only
-       * contains the restaurant image.
-       *
-       * So we fetch each restaurant's menu and find the
-       * recommended dish. This allows the actual dish image
-       * uploaded through Admin to appear in the AI result.
-       */
-
-      const resultsWithDishImages =
-        await Promise.all(
-          formattedResults.map(
-            async (restaurant) => {
-
-              try {
-
-                const detailResponse =
-                  await fetch(
-                    `${API}/restaurants/${restaurant._id}`
-                  );
-
-
-                if (!detailResponse.ok) {
-                  return restaurant;
-                }
-
-
-                const detail =
-                  await detailResponse.json();
-
-
-                const menuItem =
-                  detail.menu?.find(
-                    (item) =>
-                      String(item._id) ===
-                      String(
-                        restaurant.aiMenuItemId
-                      )
-                  );
-
-
-                return {
-                  ...restaurant,
-
-                  aiMenuItemImage:
-                    menuItem?.image ||
-                    null
-                };
-
-              } catch (error) {
-
-                console.error(
-                  'Could not load AI dish image:',
-                  error
-                );
-
-                return restaurant;
-              }
-            }
-          )
-        );
-
-
-      setAiResults(
-        resultsWithDishImages
-      );
-
-    } catch (error) {
-
-      console.error(
-        'AI error:',
-        error
-      );
-
-
-      setAiResults([]);
-
-
-      setAiMessage(
-        error.message ||
-        'Sorry, I could not get recommendations right now. 😭'
-      );
-    }
-  };
-
 
   return (
     <main>
 
-      {/* =================================================
-          HERO
-      ================================================= */}
+      {/* HERO */}
 
       <section className="hero">
-
         <div>
 
           <p className="eyebrow">
@@ -1236,9 +226,9 @@ function Home() {
 
           <p>
             Browse restaurants, explore
-            menus and order your favourites.
+            menus and order your
+            favourites.
           </p>
-
 
           <div className="search">
 
@@ -1264,403 +254,16 @@ function Home() {
           </div>
 
         </div>
-
       </section>
 
 
-      {/* =================================================
-          LOCATION DISCOVERY
-      ================================================= */}
-
-      <section
-        style={{
-          margin: '30px auto',
-          padding: '25px',
-          maxWidth: '1400px',
-          background: '#fff',
-          borderRadius: '20px',
-          border: '1px solid #eee',
-          boxShadow:
-            '0 10px 30px rgba(0,0,0,0.05)'
-        }}
-      >
-
-        <div
-          style={{
-            display: 'flex',
-            justifyContent:
-              'space-between',
-            alignItems: 'center',
-            gap: '20px',
-            flexWrap: 'wrap'
-          }}
-        >
-
-          <div>
-
-            <span
-              style={{
-                display:
-                  'inline-block',
-                fontSize: '13px',
-                fontWeight: '700',
-                color: '#ff5a1f',
-                letterSpacing: '1px',
-                marginBottom: '8px'
-              }}
-            >
-              📍 LOCATION DISCOVERY
-            </span>
-
-
-            <h2
-              style={{
-                margin: '5px 0',
-                fontSize: '28px'
-              }}
-            >
-              Find restaurants near you
-            </h2>
-
-
-            <p
-              style={{
-                margin: '8px 0',
-                color: '#666'
-              }}
-            >
-              {locationMessage}
-            </p>
-
-          </div>
-
-
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              flexWrap: 'wrap'
-            }}
-          >
-
-            <button
-              className="primary"
-              onClick={
-                useMyLocation
-              }
-              type="button"
-            >
-              📍 Use My Location
-            </button>
-
-
-            {selectedLocation && (
-              <button
-                type="button"
-                onClick={
-                  clearLocation
-                }
-                style={{
-                  padding:
-                    '12px 18px',
-                  borderRadius:
-                    '10px',
-                  border:
-                    '1px solid #ddd',
-                  background:
-                    '#fff',
-                  cursor:
-                    'pointer',
-                  fontWeight:
-                    '600'
-                }}
-              >
-                Show All
-              </button>
-            )}
-
-          </div>
-
-        </div>
-
-
-        {selectedLocation && (
-
-          <div
-            style={{
-              marginTop: '20px',
-              padding: '18px',
-              background: '#fff7f2',
-              borderRadius: '14px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent:
-                'space-between',
-              gap: '20px',
-              flexWrap: 'wrap'
-            }}
-          >
-
-            <div>
-
-              <strong>
-                📍 Nearby restaurants
-              </strong>
-
-              <p
-                style={{
-                  margin:
-                    '5px 0 0',
-                  color: '#666'
-                }}
-              >
-                Showing restaurants
-                within{' '}
-                <strong>
-                  {radius} km
-                </strong>{' '}
-                of your location.
-              </p>
-
-            </div>
-
-
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px'
-              }}
-            >
-
-              <label
-                htmlFor="radius"
-                style={{
-                  fontWeight:
-                    '600'
-                }}
-              >
-                Radius:
-              </label>
-
-
-              <select
-                id="radius"
-                value={radius}
-                onChange={(e) =>
-                  setRadius(
-                    Number(
-                      e.target.value
-                    )
-                  )
-                }
-                style={{
-                  padding:
-                    '10px 14px',
-                  borderRadius:
-                    '10px',
-                  border:
-                    '1px solid #ddd',
-                  background:
-                    '#fff',
-                  fontSize:
-                    '15px'
-                }}
-              >
-
-                <option value={5}>
-                  5 km
-                </option>
-
-                <option value={10}>
-                  10 km
-                </option>
-
-                <option value={25}>
-                  25 km
-                </option>
-
-                <option value={50}>
-                  50 km
-                </option>
-
-              </select>
-
-            </div>
-
-          </div>
-        )}
-
-      </section>
-
-
-      {/* =================================================
-          AI FOOD ASSISTANT
-      ================================================= */}
-
-      <section className="aiBox">
-
-        <div className="aiHeader">
-
-          <div>
-
-            <span className="aiBadge">
-              ✨ AI FOOD ASSISTANT
-            </span>
-
-            <h2>
-              What should I eat?
-            </h2>
-
-            <p>
-              Tell me what you're craving
-              and I'll find something for you.
-            </p>
-
-          </div>
-
-
-          <div className="aiIcon">
-            🤖
-          </div>
-
-        </div>
-
-
-        <div className="aiSearch">
-
-          <input
-            value={aiQuery}
-            onChange={(e) =>
-              setAiQuery(
-                e.target.value
-              )
-            }
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                askAI();
-              }
-            }}
-            placeholder="Try: spicy food under ₹300"
-          />
-
-          <button
-            onClick={askAI}
-          >
-            Ask AI ✨
-          </button>
-
-        </div>
-
-
-        {aiMessage && (
-          <p className="aiMessage">
-            {aiMessage}
-          </p>
-        )}
-
-
-        {aiResults.length > 0 && (
-
-          <div className="aiResults">
-
-            {aiResults.map((r) => (
-
-              <Link
-                key={r._id}
-                to={`/restaurant/${r._id}`}
-                className="aiCard"
-              >
-
-                {/* =================================================
-                    AI DISH IMAGE
-                ================================================= */}
-
-                <img
-                  src={
-                    r.aiMenuItemImage ||
-                    r.image ||
-                    DEFAULT_FOOD_IMAGE
-                  }
-                  alt={
-                    r.aiMenuItem ||
-                    r.name
-                  }
-                  onError={(e) => {
-                    e.currentTarget.src =
-                      DEFAULT_FOOD_IMAGE;
-                  }}
-                />
-
-
-                <div>
-
-                  <h3>
-                    {r.name}
-                  </h3>
-
-
-                  {r.aiMenuItem && (
-                    <p>
-                      🍽️{' '}
-                      <strong>
-                        {r.aiMenuItem}
-                      </strong>{' '}
-                      · ₹{r.aiPrice}
-                    </p>
-                  )}
-
-
-                  {r.aiReason && (
-                    <p className="aiReason">
-                      💡 {r.aiReason}
-                    </p>
-                  )}
-
-
-                  <p>
-                    ⭐ {r.rating} ·{' '}
-                    {r.deliveryTime} min
-                  </p>
-
-
-                  <p>
-                    {r.cuisine?.join(
-                      ', '
-                    )}
-                  </p>
-
-
-                  <small>
-                    ₹
-                    {r.priceForTwo || 400}{' '}
-                    for two
-                  </small>
-
-                </div>
-
-              </Link>
-
-            ))}
-
-          </div>
-
-        )}
-
-      </section>
-
-
-      {/* =================================================
-          FOOD CATEGORIES
-      ================================================= */}
+      {/* FOOD CATEGORIES */}
 
       <section className="categories">
 
         <h2>
           What are you craving?
         </h2>
-
 
         <div className="categoryRow">
 
@@ -1754,110 +357,59 @@ function Home() {
           </button>
 
         </div>
-
       </section>
 
 
-      {/* =================================================
-          RESTAURANTS
-      ================================================= */}
+      {/* RESTAURANTS */}
 
-      <section className="restaurantsSection">
+      <section>
 
         <div
           style={{
             display: 'flex',
             justifyContent:
               'space-between',
-            alignItems: 'center',
-            gap: '20px',
-            flexWrap: 'wrap'
+            alignItems: 'center'
           }}
         >
 
-          <div>
+          <h2>
+            {q
+              ? `Restaurants for "${q}"`
+              : 'Top restaurants'}
+          </h2>
 
-            <h2>
-
-              {selectedLocation
-                ? 'Restaurants near you'
-                : q
-                ? `Restaurants for "${q}"`
-                : 'Top restaurants'}
-
-            </h2>
-
-
-            {selectedLocation && (
-              <p
-                style={{
-                  marginTop:
-                    '-5px',
-                  color: '#666'
-                }}
-              >
-                Sorted by distance 📍
-              </p>
-            )}
-
-          </div>
-
-
-          <div
-            style={{
-              display: 'flex',
-              gap: '10px'
-            }}
-          >
-
-            {q && (
-
-              <button
-                className="primary"
-                onClick={() => {
-                  setQ('');
-                  load('');
-                }}
-              >
-                Clear search
-              </button>
-
-            )}
-
-          </div>
+          {q && (
+            <button
+              className="primary"
+              onClick={() => {
+                setQ('');
+                load('');
+              }}
+            >
+              Clear search
+            </button>
+          )}
 
         </div>
 
 
-        {nearbyRestaurants.length === 0 ? (
+        {data.length === 0 ? (
 
           <div className="emptyState">
 
             <div>
-              📍
+              🍽️
             </div>
 
             <h3>
-              No restaurants found nearby
+              No restaurants found
             </h3>
 
             <p>
-              Try increasing your search
-              radius or choose another
-              location.
+              Try another restaurant
+              name or cuisine.
             </p>
-
-
-            {selectedLocation && (
-              <button
-                className="primary"
-                onClick={() =>
-                  setRadius(50)
-                }
-              >
-                Search within 50 km
-              </button>
-            )}
 
           </div>
 
@@ -1865,82 +417,51 @@ function Home() {
 
           <div className="grid">
 
-            {nearbyRestaurants.map(
-              (r) => (
+            {data.map((r) => (
 
-                <Link
-                  className="card"
-                  key={r._id}
-                  to={`/restaurant/${r._id}`}
-                >
+              <Link
+                className="card"
+                key={r._id}
+                to={`/restaurant/${r._id}`}
+              >
 
-                  <img
-                    src={
-                      getImage(
-                        r.image,
-                        img(
-                          '1552566626-52f8b828add9'
-                        )
-                      )
-                    }
-                    alt={r.name}
-                    onError={(e) => {
-                      e.currentTarget.src =
-                        DEFAULT_FOOD_IMAGE;
-                    }}
-                  />
+                <img
+                  src={
+                    r.image ||
+                    img(
+                      '1552566626-52f8b828add9'
+                    )
+                  }
+                  alt={r.name}
+                />
 
+                <div>
 
-                  <div>
+                  <h3>
+                    {r.name}
+                  </h3>
 
-                    <h3>
-                      {r.name}
-                    </h3>
+                  <p>
+                    ⭐ {r.rating} ·{' '}
+                    {r.deliveryTime} min
+                  </p>
 
+                  <p>
+                    {r.cuisine?.join(', ')}
+                  </p>
 
-                    <p>
-                      ⭐ {r.rating} ·{' '}
-                      {r.deliveryTime} min
-                    </p>
+                  <small>
+                    ₹
+                    {r.priceForTwo ||
+                      400}{' '}
+                    for two
+                  </small>
 
+                </div>
 
-                    <p>
-                      {r.cuisine?.join(
-                        ', '
-                      )}
-                    </p>
+              </Link>
 
-
-                    {r.distance !== null && (
-                      <p
-                        style={{
-                          fontWeight:
-                            '700',
-                          color:
-                            '#ff5a1f'
-                        }}
-                      >
-                        📍{' '}
-                        {r.distance.toFixed(
-                          1
-                        )}{' '}
-                        km away
-                      </p>
-                    )}
-
-
-                    <small>
-                      ₹
-                      {r.priceForTwo || 400}{' '}
-                      for two
-                    </small>
-
-                  </div>
-
-                </Link>
-
-              )
-            )}
+            ))}
 
           </div>
 
@@ -1948,57 +469,28 @@ function Home() {
 
       </section>
 
-
-      {/* =================================================
-          RESTAURANT MAP
-      ================================================= */}
-
-      <RestaurantMap
-        restaurants={
-          nearbyRestaurants
-        }
-        selectedLocation={
-          selectedLocation
-        }
-        setSelectedLocation={
-          setSelectedLocation
-        }
-      />
-
     </main>
   );
 }
 
 
-// =========================================================
-// RESTAURANT PAGE
-// =========================================================
+/* =========================
+   RESTAURANT
+========================= */
 
 function Restaurant({ add }) {
-
-  const { id } =
-    useParams();
+  const { id } = useParams();
 
   const [data, setData] =
     useState(null);
 
-
   useEffect(() => {
-
     fetch(
       `${API}/restaurants/${id}`
     )
       .then((r) => r.json())
-      .then(setData)
-      .catch((error) =>
-        console.error(
-          'Restaurant error:',
-          error
-        )
-      );
-
+      .then(setData);
   }, [id]);
-
 
   if (!data) {
     return (
@@ -2010,9 +502,10 @@ function Restaurant({ add }) {
     );
   }
 
-
   return (
     <main>
+
+      {/* RESTAURANT HEADER */}
 
       <div className="restaurantHead">
 
@@ -2023,9 +516,8 @@ function Restaurant({ add }) {
           </h1>
 
           <p>
-            ⭐{' '}
-            {data.restaurant.rating} ·{' '}
-            {data.restaurant.cuisine?.join(
+            ⭐ {data.restaurant.rating} ·{' '}
+            {data.restaurant.cuisine.join(
               ', '
             )}
           </p>
@@ -2041,38 +533,33 @@ function Restaurant({ add }) {
       </div>
 
 
+      {/* MENU */}
+
       <h2>
         Menu
       </h2>
 
-
       <div className="menu">
 
-        {data.menu?.map((m) => (
+        {data.menu.map((m) => (
 
           <article
             className="menuItem"
             key={m._id}
           >
 
-            {/* =================================================
-                DISH IMAGE
-                THIS IS THE IMPORTANT PART
-            ================================================= */}
+            {/* MENU ITEM IMAGE */}
 
-            <img
-              src={getImage(
-                m.image,
-                DEFAULT_FOOD_IMAGE
-              )}
-              alt={m.name}
-              className="menuItemImage"
-              onError={(e) => {
-                e.currentTarget.src =
-                  DEFAULT_FOOD_IMAGE;
-              }}
-            />
+            {m.image && (
+              <img
+                className="menuItemImage"
+                src={m.image}
+                alt={m.name}
+              />
+            )}
 
+
+            {/* MENU ITEM CONTENT */}
 
             <div className="menuItemContent">
 
@@ -2097,6 +584,8 @@ function Restaurant({ add }) {
             </div>
 
 
+            {/* ADD BUTTON */}
+
             <button
               onClick={() =>
                 add(
@@ -2119,36 +608,28 @@ function Restaurant({ add }) {
 }
 
 
-// =========================================================
-// CART
-// =========================================================
+/* =========================
+   CART
+========================= */
 
 function Cart({
   cart,
   remove,
   setCart
 }) {
+  const nav = useNavigate();
 
-  const nav =
-    useNavigate();
-
-
-  const total =
-    cart.reduce(
-      (sum, item) =>
-        sum +
-        item.price *
-          item.quantity,
-      0
-    );
-
+  const total = cart.reduce(
+    (s, i) =>
+      s + i.price * i.quantity,
+    0
+  );
 
   const [address, setAddress] =
     useState('');
 
   const [msg, setMsg] =
     useState('');
-
 
   const place = async () => {
 
@@ -2157,83 +638,56 @@ function Cart({
         'token'
       );
 
-
     if (!token) {
-      nav('/login');
-      return;
+      return nav('/login');
     }
-
 
     if (!cart.length) {
       return;
     }
 
+    const res = await fetch(
+      `${API}/orders`,
+      {
+        method: 'POST',
 
-    try {
+        headers: {
+          'Content-Type':
+            'application/json',
 
-      const res =
-        await fetch(
-          `${API}/orders`,
-          {
-            method: 'POST',
+          Authorization:
+            `Bearer ${token}`
+        },
 
-            headers: {
-              'Content-Type':
-                'application/json',
+        body: JSON.stringify({
+          restaurant:
+            cart[0].restaurant,
 
-              Authorization:
-                `Bearer ${token}`
-            },
+          items: cart,
 
-            body: JSON.stringify({
-              restaurant:
-                cart[0].restaurant,
+          total,
 
-              items: cart,
-
-              total,
-
-              address
-            })
-          }
-        );
-
-
-      const body =
-        await res.json();
-
-
-      if (!res.ok) {
-
-        setMsg(
-          body.message ||
-          'Could not place order'
-        );
-
-        return;
+          address
+        })
       }
+    );
 
+    const body =
+      await res.json();
 
-      setCart([]);
-
-
-      setMsg(
-        'Order placed! 🎉'
-      );
-
-    } catch (error) {
-
-      console.error(
-        'Order error:',
-        error
-      );
-
-      setMsg(
-        'Could not place order. Please try again.'
+    if (!res.ok) {
+      return setMsg(
+        body.message ||
+          'Could not place order'
       );
     }
-  };
 
+    setCart([]);
+
+    setMsg(
+      'Order placed! 🎉'
+    );
+  };
 
   return (
     <main>
@@ -2241,7 +695,6 @@ function Cart({
       <h1>
         Your cart
       </h1>
-
 
       {cart.length === 0 ? (
 
@@ -2281,21 +734,6 @@ function Cart({
                 className="cartRow"
                 key={i.menuItem}
               >
-
-                {i.image && (
-                  <img
-                    src={getImage(
-                      i.image
-                    )}
-                    alt={i.name}
-                    style={{
-                      width: '60px',
-                      height: '60px',
-                      objectFit: 'cover',
-                      borderRadius: '10px'
-                    }}
-                  />
-                )}
 
                 <span>
                   {i.name}
@@ -2354,6 +792,7 @@ function Cart({
           )}
 
         </>
+
       )}
 
     </main>
@@ -2361,15 +800,12 @@ function Cart({
 }
 
 
-// =========================================================
-// LOGIN / REGISTER
-// =========================================================
+/* =========================
+   LOGIN / REGISTER
+========================= */
 
 function Auth({ mode }) {
-
-  const nav =
-    useNavigate();
-
+  const nav = useNavigate();
 
   const [form, setForm] =
     useState({
@@ -2378,89 +814,48 @@ function Auth({ mode }) {
       password: ''
     });
 
-
   const [msg, setMsg] =
     useState('');
 
+  const submit = async (e) => {
 
-  const submit =
-    async (e) => {
+    e.preventDefault();
 
-      e.preventDefault();
+    const res = await fetch(
+      `${API}/auth/${mode}`,
+      {
+        method: 'POST',
 
+        headers: {
+          'Content-Type':
+            'application/json'
+        },
 
-      try {
-
-        const res =
-          await fetch(
-            `${API}/auth/${mode}`,
-            {
-              method: 'POST',
-
-              headers: {
-                'Content-Type':
-                  'application/json'
-              },
-
-              body: JSON.stringify(
-                form
-              )
-            }
-          );
-
-
-        const b =
-          await res.json();
-
-
-        if (!res.ok) {
-
-          setMsg(
-            b.message ||
-            'Authentication failed'
-          );
-
-          return;
-        }
-
-
-        localStorage.setItem(
-          'token',
-          b.token
-        );
-
-
-        setMsg(
-          mode === 'login'
-            ? 'Login successful! 🎉'
-            : 'Account created successfully! 🎉'
-        );
-
-
-        setTimeout(() => {
-          nav('/');
-        }, 1500);
-
-      } catch (error) {
-
-        console.error(
-          'Auth error:',
-          error
-        );
-
-        setMsg(
-          'Something went wrong. Please try again.'
-        );
+        body: JSON.stringify(form)
       }
-    };
+    );
 
+    const b =
+      await res.json();
+
+    if (!res.ok) {
+      return setMsg(
+        b.message
+      );
+    }
+
+    localStorage.setItem(
+      'token',
+      b.token
+    );
+
+    nav('/');
+  };
 
   return (
     <main className="formPage">
 
-      <form
-        onSubmit={submit}
-      >
+      <form onSubmit={submit}>
 
         <h1>
           {mode === 'login'
@@ -2505,15 +900,14 @@ function Auth({ mode }) {
           onChange={(e) =>
             setForm({
               ...form,
-              password: e.target.value
+              password:
+                e.target.value
             })
           }
         />
 
 
-        <button
-          className="primary"
-        >
+        <button className="primary">
           {mode === 'login'
             ? 'Login'
             : 'Register'}
@@ -2533,15 +927,13 @@ function Auth({ mode }) {
 }
 
 
-// =========================================================
-// ORDERS
-// =========================================================
+/* =========================
+   ORDERS
+========================= */
 
 function Orders() {
-
   const [orders, setOrders] =
     useState([]);
-
 
   useEffect(() => {
 
@@ -2550,40 +942,24 @@ function Orders() {
         'token'
       );
 
+    if (token) {
 
-    if (!token) {
-      return;
+      fetch(
+        `${API}/orders/mine`,
+        {
+          headers: {
+            Authorization:
+              `Bearer ${token}`
+          }
+        }
+      )
+        .then((r) =>
+          r.json()
+        )
+        .then(setOrders);
     }
 
-
-    fetch(
-      `${API}/orders/mine`,
-      {
-        headers: {
-          Authorization:
-            `Bearer ${token}`
-        }
-      }
-    )
-      .then((r) => r.json())
-      .then((result) => {
-
-        setOrders(
-          Array.isArray(result)
-            ? result
-            : []
-        );
-
-      })
-      .catch((error) =>
-        console.error(
-          'Orders error:',
-          error
-        )
-      );
-
   }, []);
-
 
   return (
     <main>
@@ -2652,14 +1028,16 @@ function Orders() {
 }
 
 
-// =========================================================
-// START APP
-// =========================================================
+/* =========================
+   START APP
+========================= */
 
 createRoot(
   document.getElementById('root')
 ).render(
+
   <BrowserRouter>
     <App />
   </BrowserRouter>
+
 );
