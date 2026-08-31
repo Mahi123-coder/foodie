@@ -43,6 +43,27 @@ const img = (seed) =>
 
 
 // =========================================================
+// DEFAULT FOOD IMAGE
+// =========================================================
+
+const DEFAULT_FOOD_IMAGE =
+  'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=800&q=80';
+
+
+// =========================================================
+// IMAGE HELPER
+// =========================================================
+
+const getImage = (image, fallback = DEFAULT_FOOD_IMAGE) => {
+  if (image && typeof image === 'string' && image.trim()) {
+    return image;
+  }
+
+  return fallback;
+};
+
+
+// =========================================================
 // LEAFLET MARKER FIX
 // =========================================================
 
@@ -80,7 +101,8 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
       Math.sin(dLon / 2);
 
   const c =
-    2 * Math.atan2(
+    2 *
+    Math.atan2(
       Math.sqrt(a),
       Math.sqrt(1 - a)
     );
@@ -112,6 +134,10 @@ function App() {
   }, [cart]);
 
 
+  // =======================================================
+  // ADD TO CART
+  // =======================================================
+
   const add = (item, restaurant) => {
     setCart((current) => {
       const existing = current.find(
@@ -135,6 +161,7 @@ function App() {
           menuItem: item._id,
           name: item.name,
           price: item.price,
+          image: item.image || DEFAULT_FOOD_IMAGE,
           quantity: 1,
           restaurant
         }
@@ -142,6 +169,10 @@ function App() {
     });
   };
 
+
+  // =======================================================
+  // REMOVE FROM CART
+  // =======================================================
 
   const remove = (id) => {
     setCart((current) =>
@@ -594,12 +625,12 @@ function RestaurantMap({
                       <div className="mapPopup">
 
                         <img
-                          src={
-                            restaurant.image ||
+                          src={getImage(
+                            restaurant.image,
                             img(
                               '1552566626-52f8b828add9'
                             )
-                          }
+                          )}
                           alt={restaurant.name}
                         />
 
@@ -1078,6 +1109,9 @@ function Home() {
                 aiMenuItem:
                   recommendation.menuItemName,
 
+                aiMenuItemId:
+                  recommendation.menuItemId,
+
                 aiPrice:
                   recommendation.price,
 
@@ -1090,8 +1124,76 @@ function Home() {
           .filter(Boolean);
 
 
+      /*
+       * =====================================================
+       * GET MENU ITEM IMAGES FOR AI RESULTS
+       * =====================================================
+       *
+       * Your backend recommendation response gives us
+       * menuItemId, but the restaurant list normally only
+       * contains the restaurant image.
+       *
+       * So we fetch each restaurant's menu and find the
+       * recommended dish. This allows the actual dish image
+       * uploaded through Admin to appear in the AI result.
+       */
+
+      const resultsWithDishImages =
+        await Promise.all(
+          formattedResults.map(
+            async (restaurant) => {
+
+              try {
+
+                const detailResponse =
+                  await fetch(
+                    `${API}/restaurants/${restaurant._id}`
+                  );
+
+
+                if (!detailResponse.ok) {
+                  return restaurant;
+                }
+
+
+                const detail =
+                  await detailResponse.json();
+
+
+                const menuItem =
+                  detail.menu?.find(
+                    (item) =>
+                      String(item._id) ===
+                      String(
+                        restaurant.aiMenuItemId
+                      )
+                  );
+
+
+                return {
+                  ...restaurant,
+
+                  aiMenuItemImage:
+                    menuItem?.image ||
+                    null
+                };
+
+              } catch (error) {
+
+                console.error(
+                  'Could not load AI dish image:',
+                  error
+                );
+
+                return restaurant;
+              }
+            }
+          )
+        );
+
+
       setAiResults(
-        formattedResults
+        resultsWithDishImages
       );
 
     } catch (error) {
@@ -1471,14 +1573,24 @@ function Home() {
                 className="aiCard"
               >
 
+                {/* =================================================
+                    AI DISH IMAGE
+                ================================================= */}
+
                 <img
                   src={
+                    r.aiMenuItemImage ||
                     r.image ||
-                    img(
-                      '1552566626-52f8b828add9'
-                    )
+                    DEFAULT_FOOD_IMAGE
                   }
-                  alt={r.name}
+                  alt={
+                    r.aiMenuItem ||
+                    r.name
+                  }
+                  onError={(e) => {
+                    e.currentTarget.src =
+                      DEFAULT_FOOD_IMAGE;
+                  }}
                 />
 
 
@@ -1764,12 +1876,18 @@ function Home() {
 
                   <img
                     src={
-                      r.image ||
-                      img(
-                        '1552566626-52f8b828add9'
+                      getImage(
+                        r.image,
+                        img(
+                          '1552566626-52f8b828add9'
+                        )
                       )
                     }
                     alt={r.name}
+                    onError={(e) => {
+                      e.currentTarget.src =
+                        DEFAULT_FOOD_IMAGE;
+                    }}
                   />
 
 
@@ -1937,7 +2055,26 @@ function Restaurant({ add }) {
             key={m._id}
           >
 
-            <div>
+            {/* =================================================
+                DISH IMAGE
+                THIS IS THE IMPORTANT PART
+            ================================================= */}
+
+            <img
+              src={getImage(
+                m.image,
+                DEFAULT_FOOD_IMAGE
+              )}
+              alt={m.name}
+              className="menuItemImage"
+              onError={(e) => {
+                e.currentTarget.src =
+                  DEFAULT_FOOD_IMAGE;
+              }}
+            />
+
+
+            <div className="menuItemContent">
 
               <span className="veg">
                 {m.isVeg
@@ -2144,6 +2281,21 @@ function Cart({
                 className="cartRow"
                 key={i.menuItem}
               >
+
+                {i.image && (
+                  <img
+                    src={getImage(
+                      i.image
+                    )}
+                    alt={i.name}
+                    style={{
+                      width: '60px',
+                      height: '60px',
+                      objectFit: 'cover',
+                      borderRadius: '10px'
+                    }}
+                  />
+                )}
 
                 <span>
                   {i.name}

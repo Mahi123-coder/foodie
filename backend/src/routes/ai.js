@@ -6,6 +6,7 @@ import MenuItem from '../models/MenuItem.js';
 
 const router = Router();
 
+
 // =============================================================
 // GEMINI AI
 // =============================================================
@@ -28,537 +29,600 @@ const ai = apiKey
 // =============================================================
 
 router.post('/recommend', async (req, res) => {
+
   try {
+
     const { query } = req.body;
 
+
+    // =========================================================
+    // VALIDATE QUERY
+    // =========================================================
+
     if (!query || !query.trim()) {
+
       return res.status(400).json({
-        message: 'Please tell me what you are looking for.',
+        message:
+          'Please tell me what you are looking for.',
+        recommendations: [],
       });
+
     }
 
-    const text = query.toLowerCase().trim();
 
-    // =========================================================
-    // GET DATA
-    // =========================================================
+    if (!ai) {
 
-    const restaurants = await Restaurant.find({}).lean();
-    const menuItems = await MenuItem.find({}).lean();
+      return res.status(500).json({
+        message:
+          'Gemini AI is not configured. Please add GEMINI_API_KEY to the backend environment variables.',
+        recommendations: [],
+      });
 
-    // =========================================================
-    // BUDGET
-    // =========================================================
-
-    const budgetMatch = text.match(
-      /(?:under|below|within|less than|max(?:imum)?|budget of)\s*₹?\s*(\d+)/i
-    );
-
-    const budget = budgetMatch
-      ? Number(budgetMatch[1])
-      : null;
+    }
 
 
     // =========================================================
-    // VEG / NON-VEG
+    // GET RESTAURANTS + MENU
     // =========================================================
 
-    const wantsVeg =
-      text.includes('veg') ||
-      text.includes('vegetarian');
+    const restaurants =
+      await Restaurant.find({}).lean();
 
-    const wantsNonVeg =
-      text.includes('non veg') ||
-      text.includes('non-veg') ||
-      text.includes('chicken') ||
-      text.includes('mutton') ||
-      text.includes('fish');
+    const menuItems =
+      await MenuItem.find({}).lean();
 
 
     // =========================================================
-    // FOOD KEYWORDS
-    // =========================================================
-
-    const keywords = [
-      'pizza',
-      'burger',
-      'salad',
-      'indian',
-      'north indian',
-      'south indian',
-      'chinese',
-      'dessert',
-      'healthy',
-      'biryani',
-      'pasta',
-      'dosa',
-      'noodles',
-      'sandwich',
-      'cake',
-      'spicy',
-      'sweet',
-      'breakfast',
-      'rice',
-      'paneer',
-      'chicken',
-      'mutton',
-      'fish',
-      'thali',
-      'meal',
-      'wrap',
-      'roll',
-      'soup',
-      'momos',
-      'tandoori',
-      'kebab',
-      'shawarma',
-      'fries',
-      'ice cream',
-      'coffee',
-      'tea',
-    ];
-
-    const requestedKeywords = keywords.filter((keyword) =>
-      text.includes(keyword)
-    );
-
-
-    // =========================================================
-    // REQUIRED FOOD KEYWORDS
+    // CREATE FOOD DATABASE FOR GEMINI
     // =========================================================
     //
-    // These are actual food/category searches.
-    // If the user searches one of these, unrelated food
-    // should NOT be returned.
+    // Gemini can ONLY choose from these items.
+    //
+    // This prevents Gemini from inventing restaurants
+    // or dishes that don't exist in your database.
     //
 
-    const requiredFoodKeywords = requestedKeywords.filter(
-      (keyword) =>
-        ![
-          'spicy',
-          'sweet',
-          'healthy',
-          'breakfast',
-          'indian',
-          'north indian',
-          'south indian',
-          'chinese',
-          'dessert',
-        ].includes(keyword)
-    );
+    const availableFoods = [];
 
-
-    const recommendations = [];
-
-
-    // =========================================================
-    // FIND MATCHES
-    // =========================================================
 
     for (const restaurant of restaurants) {
 
-      const restaurantCuisine = (
-        restaurant.cuisine || []
-      )
-        .join(' ')
-        .toLowerCase();
-
-
-      const restaurantText = `
-        ${restaurant.name || ''}
-        ${restaurantCuisine}
-        ${restaurant.location || ''}
-      `.toLowerCase();
-
-
-      const restaurantMenu = menuItems.filter(
-        (item) =>
-          String(item.restaurant) ===
-          String(restaurant._id)
-      );
+      const restaurantMenu =
+        menuItems.filter(
+          (item) =>
+            String(item.restaurant) ===
+            String(restaurant._id)
+        );
 
 
       for (const item of restaurantMenu) {
 
-        const itemText = `
-          ${item.name || ''}
-          ${item.description || ''}
-        `.toLowerCase();
+        availableFoods.push({
 
+          restaurantId:
+            String(restaurant._id),
 
-        // =====================================================
-        // REQUIRED FOOD MATCH
-        // =====================================================
-        //
-        // IMPORTANT:
-        // Match the actual menu item first.
-        // Do NOT use restaurant cuisine here because
-        // "Indian restaurant" should not make every Indian
-        // dish match a specific food search like "salad".
-        //
+          restaurantName:
+            restaurant.name,
 
-        const matchedRequiredKeyword =
-          requiredFoodKeywords.find((keyword) => {
+          cuisine:
+            restaurant.cuisine || [],
 
-            // Handle singular/plural searches.
-            if (
-              keyword === 'salad' &&
-              (
-                itemText.includes('salad') ||
-                itemText.includes('salads')
-              )
-            ) {
-              return true;
-            }
+          restaurantRating:
+            restaurant.rating || 0,
 
-            if (
-              keyword === 'pizza' &&
-              (
-                itemText.includes('pizza') ||
-                itemText.includes('pizzas')
-              )
-            ) {
-              return true;
-            }
+          restaurantLocation:
+            restaurant.location || '',
 
-            return itemText.includes(keyword);
-          });
+          deliveryTime:
+            restaurant.deliveryTime || null,
 
+          priceForTwo:
+            restaurant.priceForTwo || null,
 
-        // =====================================================
-        // STRICT FOOD FILTER
-        // =====================================================
+          menuItemId:
+            String(item._id),
 
-        if (
-          requiredFoodKeywords.length > 0 &&
-          !matchedRequiredKeyword
-        ) {
-          continue;
-        }
+          menuItemName:
+            item.name,
 
+          description:
+            item.description || '',
 
-        // =====================================================
-        // BUDGET FILTER
-        // =====================================================
+          price:
+            item.price,
 
-        if (
-          budget !== null &&
-          Number(item.price) > budget
-        ) {
-          continue;
-        }
+          isVeg:
+            item.isVeg,
 
+          image:
+            item.image || null,
 
-        // =====================================================
-        // VEG FILTER
-        // =====================================================
-
-        if (
-          wantsVeg &&
-          item.isVeg !== true
-        ) {
-          continue;
-        }
-
-
-        // =====================================================
-        // NON-VEG FILTER
-        // =====================================================
-
-        if (
-          wantsNonVeg &&
-          item.isVeg === true
-        ) {
-          continue;
-        }
-
-
-        // =====================================================
-        // SCORING
-        // =====================================================
-
-        let score = 0;
-
-
-        // Exact food match
-        if (matchedRequiredKeyword) {
-          score += 20;
-        }
-
-
-        // Budget
-        if (budget !== null) {
-          if (Number(item.price) <= budget) {
-            score += 10;
-          }
-        }
-
-
-        // Vegetarian
-        if (
-          wantsVeg &&
-          item.isVeg === true
-        ) {
-          score += 10;
-        }
-
-
-        // Non vegetarian
-        if (
-          wantsNonVeg &&
-          item.isVeg === false
-        ) {
-          score += 10;
-        }
-
-
-        // Spicy
-        if (
-          text.includes('spicy') &&
-          (
-            itemText.includes('spicy') ||
-            itemText.includes('hot')
-          )
-        ) {
-          score += 8;
-        }
-
-
-        // Sweet
-        if (
-          text.includes('sweet') &&
-          (
-            itemText.includes('sweet') ||
-            itemText.includes('dessert')
-          )
-        ) {
-          score += 8;
-        }
-
-
-        // Healthy
-        if (
-          text.includes('healthy') &&
-          (
-            itemText.includes('healthy') ||
-            itemText.includes('salad') ||
-            itemText.includes('grilled')
-          )
-        ) {
-          score += 8;
-        }
-
-
-        // Breakfast
-        if (
-          text.includes('breakfast') &&
-          (
-            itemText.includes('breakfast') ||
-            itemText.includes('dosa') ||
-            itemText.includes('idli') ||
-            itemText.includes('poha') ||
-            itemText.includes('upma')
-          )
-        ) {
-          score += 8;
-        }
-
-
-        // Filling
-        if (
-          text.includes('filling') &&
-          (
-            itemText.includes('biryani') ||
-            itemText.includes('rice') ||
-            itemText.includes('meal') ||
-            itemText.includes('thali') ||
-            itemText.includes('paneer') ||
-            itemText.includes('chicken') ||
-            itemText.includes('burger')
-          )
-        ) {
-          score += 6;
-        }
-
-
-        // Restaurant rating
-        score += Number(restaurant.rating || 0);
-
-
-        // =====================================================
-        // ADD RECOMMENDATION
-        // =====================================================
-
-        recommendations.push({
-          restaurantId: restaurant._id,
-          restaurantName: restaurant.name,
-          menuItemId: item._id,
-          menuItemName: item.name,
-          price: item.price,
-
-          reason: buildReason({
-            item,
-            restaurant,
-            budget,
-            wantsVeg,
-            wantsNonVeg,
-            requestedKeywords,
-            matchedRequiredKeyword,
-          }),
-
-          score,
         });
+
       }
+
     }
 
 
     // =========================================================
-    // SORT BY SCORE
+    // NO FOOD IN DATABASE
     // =========================================================
 
-    recommendations.sort(
-      (a, b) => b.score - a.score
-    );
-
-
-    // =========================================================
-    // REMOVE DUPLICATES
-    // =========================================================
-
-    const uniqueRecommendations = [];
-
-    const seen = new Set();
-
-    for (const recommendation of recommendations) {
-
-      const key =
-        `${recommendation.restaurantId}-${recommendation.menuItemId}`;
-
-      if (!seen.has(key)) {
-
-        seen.add(key);
-
-        uniqueRecommendations.push(
-          recommendation
-        );
-      }
-    }
-
-
-    // =========================================================
-    // TOP 5
-    // =========================================================
-
-    const topRecommendations =
-      uniqueRecommendations.slice(0, 5);
-
-
-    // =========================================================
-    // NO RESULTS
-    // =========================================================
-
-    if (topRecommendations.length === 0) {
+    if (availableFoods.length === 0) {
 
       return res.json({
+
         message:
-          `I couldn't find an exact match for "${query}". Try another food or preference. 🤔`,
+          'There are no menu items available yet. Please add some dishes from the admin panel. 🍽️',
 
         recommendations: [],
+
       });
+
     }
 
 
     // =========================================================
-    // OPTIONAL GEMINI ENHANCEMENT
+    // SEND DATABASE TO GEMINI
     // =========================================================
 
-    let aiMessage = null;
-
-    if (ai) {
-
-      try {
-
-        const recommendationSummary =
-          topRecommendations
-            .map(
-              (item) =>
-                `${item.restaurantName} - ${item.menuItemName} - ₹${item.price}`
-            )
-            .join('\n');
+    const foodDatabase =
+      JSON.stringify(
+        availableFoods,
+        null,
+        2
+      );
 
 
-        const prompt = `
-You are a helpful food recommendation assistant.
+    const prompt = `
 
-The user asked:
+You are the AI food recommendation engine for a restaurant
+ordering application.
+
+The user is asking:
+
 "${query}"
 
-Here are the matching food options selected by the application's
-database filtering system:
+You have been given the COMPLETE list of restaurants and
+menu items currently available in the application's database.
 
-${recommendationSummary}
+Your job is to understand the user's request and select the
+BEST matching menu items from this database.
 
-Write ONE short friendly sentence explaining why these options
-are suitable for the user's request.
+IMPORTANT RULES:
 
-IMPORTANT:
-- Do not invent any information.
-- Do not mention dishes that are not in the list.
-- Do not add restaurants that are not in the list.
-- Do not add prices that are not in the list.
-- Do not recommend additional food.
-- Keep it natural and concise.
+1. ONLY select menu items that appear in the database below.
+
+2. NEVER invent a restaurant.
+
+3. NEVER invent a menu item.
+
+4. NEVER invent a price.
+
+5. NEVER invent a rating.
+
+6. NEVER select a food item just because the restaurant's
+   cuisine sounds similar.
+
+7. If the user asks for "salad", select actual menu items
+   whose name or description indicates salad.
+
+8. If the user asks for pizza, select actual pizza items.
+
+9. If the user asks for vegetarian food, select vegetarian
+   items where isVeg is true.
+
+10. If the user asks for non-vegetarian food, select items
+    where isVeg is false.
+
+11. Respect explicit budget requirements.
+
+12. Understand natural language preferences such as:
+    - healthy
+    - spicy
+    - sweet
+    - filling
+    - light
+    - breakfast
+    - dinner
+    - vegetarian
+    - non vegetarian
+    - cheap
+    - expensive
+    - under a particular price
+
+13. Prefer exact menu-item matches over generic restaurant
+    cuisine matches.
+
+14. Return up to 5 best recommendations.
+
+15. If there are no suitable matches, return an empty array.
+
+16. Do not return duplicate menu items.
+
+17. The "reason" must explain why the selected item matches
+    the user's request.
+
+18. Return ONLY valid JSON.
+
+The JSON must have exactly this structure:
+
+{
+  "recommendations": [
+    {
+      "menuItemId": "DATABASE_MENU_ITEM_ID",
+      "restaurantId": "DATABASE_RESTAURANT_ID",
+      "reason": "Short explanation"
+    }
+  ],
+  "message": "One short friendly sentence"
+}
+
+DATABASE:
+
+${foodDatabase}
+
 `;
 
 
-        const response =
-          await ai.models.generateContent({
-            model: 'gemini-3.6-flash',
-            contents: prompt,
-          });
+    // =========================================================
+    // ASK GEMINI
+    // =========================================================
 
+    let response;
 
-        console.log(
-          'GEMINI RESPONSE:',
-          response.text
-        );
+    try {
 
+      response =
+        await ai.models.generateContent({
 
-        aiMessage =
-          response.text?.trim() || null;
+          model:
+            'gemini-3.6-flash',
 
-      } catch (geminiError) {
+          contents:
+            prompt,
 
-        console.error(
-          'Gemini error:',
-          geminiError.message
-        );
+        });
 
-        // If Gemini fails, the normal
-        // recommendation system still works.
-        aiMessage = null;
-      }
+    } catch (geminiError) {
+
+      console.error(
+        'Gemini API error:',
+        geminiError
+      );
+
+      return res.status(500).json({
+
+        message:
+          'Gemini AI could not process your request right now. Please try again.',
+
+        recommendations: [],
+
+      });
+
     }
 
 
     // =========================================================
-    // RESPONSE
+    // GET GEMINI TEXT
     // =========================================================
 
-    res.json({
+    const responseText =
+      response.text?.trim();
+
+
+    console.log(
+      'GEMINI RAW RESPONSE:',
+      responseText
+    );
+
+
+    if (!responseText) {
+
+      return res.status(500).json({
+
+        message:
+          'Gemini returned an empty response.',
+
+        recommendations: [],
+
+      });
+
+    }
+
+
+    // =========================================================
+    // CLEAN JSON
+    // =========================================================
+
+    let aiResult;
+
+
+    try {
+
+      let cleanText =
+        responseText;
+
+
+      // Remove markdown code fences if Gemini adds them.
+
+      if (
+        cleanText.startsWith(
+          '```'
+        )
+      ) {
+
+        cleanText =
+          cleanText
+            .replace(
+              /^```json\s*/i,
+              ''
+            )
+            .replace(
+              /^```\s*/i,
+              ''
+            )
+            .replace(
+              /\s*```$/i,
+              ''
+            )
+            .trim();
+
+      }
+
+
+      aiResult =
+        JSON.parse(
+          cleanText
+        );
+
+    } catch (parseError) {
+
+      console.error(
+        'Gemini JSON parse error:',
+        parseError
+      );
+
+      console.error(
+        'Gemini response:',
+        responseText
+      );
+
+
+      return res.status(500).json({
+
+        message:
+          'Gemini returned an invalid recommendation response. Please try again.',
+
+        recommendations: [],
+
+      });
+
+    }
+
+
+    // =========================================================
+    // VALIDATE GEMINI RESPONSE
+    // =========================================================
+
+    if (
+      !aiResult ||
+      !Array.isArray(
+        aiResult.recommendations
+      )
+    ) {
+
+      return res.json({
+
+        message:
+          'I could not find suitable recommendations for your request. 🤔',
+
+        recommendations: [],
+
+      });
+
+    }
+
+
+    // =========================================================
+    // VALIDATE GEMINI IDs AGAINST DATABASE
+    // =========================================================
+    //
+    // VERY IMPORTANT.
+    //
+    // Even though Gemini was told to use our database,
+    // we still verify every ID ourselves.
+    //
+    // Gemini cannot create fake restaurants/dishes.
+    //
+
+    const validatedRecommendations = [];
+
+
+    const seenMenuItems =
+      new Set();
+
+
+    for (
+      const aiRecommendation
+      of aiResult.recommendations
+    ) {
+
+
+      if (
+        !aiRecommendation ||
+        !aiRecommendation.menuItemId ||
+        !aiRecommendation.restaurantId
+      ) {
+        continue;
+      }
+
+
+      const menuItem =
+        menuItems.find(
+          (item) =>
+            String(item._id) ===
+            String(
+              aiRecommendation.menuItemId
+            )
+        );
+
+
+      const restaurant =
+        restaurants.find(
+          (r) =>
+            String(r._id) ===
+            String(
+              aiRecommendation.restaurantId
+            )
+        );
+
+
+      // Invalid database IDs
+
+      if (
+        !menuItem ||
+        !restaurant
+      ) {
+        continue;
+      }
+
+
+      // Make sure this menu item actually belongs
+      // to the restaurant Gemini selected.
+
+      if (
+        String(menuItem.restaurant) !==
+        String(restaurant._id)
+      ) {
+        continue;
+      }
+
+
+      // Prevent duplicates
+
+      const menuKey =
+        String(menuItem._id);
+
+
+      if (
+        seenMenuItems.has(menuKey)
+      ) {
+        continue;
+      }
+
+
+      seenMenuItems.add(
+        menuKey
+      );
+
+
+      // =======================================================
+      // RETURN REAL DATABASE DATA
+      // =======================================================
+      //
+      // We don't trust Gemini for prices, images,
+      // ratings, etc.
+      //
+      // We take those directly from MongoDB.
+      //
+
+      validatedRecommendations.push({
+
+        restaurantId:
+          restaurant._id,
+
+        restaurantName:
+          restaurant.name,
+
+        restaurantImage:
+          restaurant.image || null,
+
+        restaurantRating:
+          restaurant.rating,
+
+        cuisine:
+          restaurant.cuisine || [],
+
+        location:
+          restaurant.location || '',
+
+        deliveryTime:
+          restaurant.deliveryTime,
+
+        priceForTwo:
+          restaurant.priceForTwo,
+
+        menuItemId:
+          menuItem._id,
+
+        menuItemName:
+          menuItem.name,
+
+        menuItemDescription:
+          menuItem.description || '',
+
+        price:
+          menuItem.price,
+
+        isVeg:
+          menuItem.isVeg,
+
+        // Gemini's explanation only
+        reason:
+          aiRecommendation.reason ||
+          'This dish matches your request.',
+
+      });
+
+    }
+
+
+    // =========================================================
+    // NO VALID RESULTS
+    // =========================================================
+
+    if (
+      validatedRecommendations.length === 0
+    ) {
+
+      return res.json({
+
+        message:
+          `I couldn't find a suitable match for "${query}". Try another food or preference. 🤔`,
+
+        recommendations: [],
+
+      });
+
+    }
+
+
+    // =========================================================
+    // LIMIT TO 5
+    // =========================================================
+
+    const topRecommendations =
+      validatedRecommendations.slice(
+        0,
+        5
+      );
+
+
+    // =========================================================
+    // FINAL RESPONSE
+    // =========================================================
+
+    return res.json({
 
       message:
-        aiMessage ||
-        `I found ${topRecommendations.length} tasty option${
-          topRecommendations.length > 1
-            ? 's'
-            : ''
-        } for you! 🍽️`,
+        aiResult.message ||
+        `I found ${topRecommendations.length} great options for you! 🍽️`,
 
       recommendations:
-        topRecommendations.map(
-          ({ score, ...item }) => item
-        ),
+        topRecommendations,
+
     });
 
 
@@ -570,142 +634,19 @@ IMPORTANT:
     );
 
 
-    res.status(500).json({
+    return res.status(500).json({
+
       message:
         error.message ||
         'Could not generate recommendations.',
+
+      recommendations: [],
+
     });
+
   }
+
 });
-
-
-// =============================================================
-// REASON BUILDER
-// =============================================================
-
-function buildReason({
-  item,
-  restaurant,
-  budget,
-  wantsVeg,
-  wantsNonVeg,
-  requestedKeywords,
-  matchedRequiredKeyword,
-}) {
-
-  const reasons = [];
-
-
-  if (matchedRequiredKeyword) {
-
-    reasons.push(
-      `${matchedRequiredKeyword} preference`
-    );
-  }
-
-
-  if (
-    wantsVeg &&
-    item.isVeg === true
-  ) {
-
-    reasons.push(
-      'vegetarian'
-    );
-  }
-
-
-  if (
-    wantsNonVeg &&
-    item.isVeg === false
-  ) {
-
-    reasons.push(
-      'non-vegetarian'
-    );
-  }
-
-
-  if (
-    budget !== null &&
-    Number(item.price) <= budget
-  ) {
-
-    reasons.push(
-      `within your ₹${budget} budget`
-    );
-  }
-
-
-  // =========================================================
-  // PREFERENCE REASONS
-  // =========================================================
-
-  const description =
-    `${item.name || ''} ${
-      item.description || ''
-    }`.toLowerCase();
-
-
-  if (
-    requestedKeywords.includes('spicy') &&
-    (
-      description.includes('spicy') ||
-      description.includes('hot')
-    )
-  ) {
-
-    reasons.push(
-      'spicy preference'
-    );
-  }
-
-
-  if (
-    requestedKeywords.includes('sweet') &&
-    (
-      description.includes('sweet') ||
-      description.includes('dessert')
-    )
-  ) {
-
-    reasons.push(
-      'sweet preference'
-    );
-  }
-
-
-  if (
-    requestedKeywords.includes('healthy') &&
-    (
-      description.includes('healthy') ||
-      description.includes('salad') ||
-      description.includes('grilled')
-    )
-  ) {
-
-    reasons.push(
-      'healthy preference'
-    );
-  }
-
-
-  // =========================================================
-  // DEFAULT REASON
-  // =========================================================
-
-  if (reasons.length === 0) {
-
-    reasons.push(
-      'a good match based on your request'
-    );
-  }
-
-
-  return `I picked this because it matches your ${reasons.join(
-    ', '
-  )}.`;
-}
 
 
 export default router;
