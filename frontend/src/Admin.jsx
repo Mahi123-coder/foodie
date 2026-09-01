@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 
-const API = 'https://foodie-pdft.onrender.com/api';
+
+const API = 'https://foodie-1-3b27.onrender.com/api';
 const emptyForm = {
   name: '',
   cuisine: '',
