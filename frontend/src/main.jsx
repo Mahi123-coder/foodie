@@ -112,6 +112,25 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 
 
 // =========================================================
+// HELPER: LOAD RAZORPAY SCRIPT
+// =========================================================
+
+const loadRazorpayScript = () => {
+  return new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
+
+// =========================================================
 // APP
 // =========================================================
 
@@ -2097,26 +2116,7 @@ function Restaurant({ add }) {
 
 
 // =========================================================
-// HELPER: LOAD RAZORPAY SCRIPT
-// =========================================================
-
-const loadRazorpayScript = () => {
-  return new Promise((resolve) => {
-    if (window.Razorpay) {
-      resolve(true);
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
-};
-
-
-// =========================================================
-// CART (WITH RAZORPAY INTEGRATION)
+// CART (INTEGRATED WITH RAZORPAY /create-order & /verify)
 // =========================================================
 
 function Cart({
@@ -2128,7 +2128,6 @@ function Cart({
   const nav =
     useNavigate();
 
-
   const total =
     cart.reduce(
       (sum, item) =>
@@ -2138,12 +2137,14 @@ function Cart({
       0
     );
 
-
   const [address, setAddress] =
     useState('');
 
   const [msg, setMsg] =
     useState('');
+
+  const [loading, setLoading] =
+    useState(false);
 
 
   const place = async () => {
@@ -2153,12 +2154,10 @@ function Cart({
         'token'
       );
 
-
     if (!token) {
       nav('/login');
       return;
     }
-
 
     if (!cart.length) {
       return;
@@ -2169,19 +2168,20 @@ function Cart({
       return;
     }
 
-
     try {
-      setMsg('Initializing payment... 💳');
+      setLoading(true);
+      setMsg('Creating order... ⏳');
 
       const isScriptLoaded = await loadRazorpayScript();
       if (!isScriptLoaded) {
-        setMsg('Razorpay SDK failed to load. Check your internet connection.');
+        setLoading(false);
+        setMsg('Razorpay SDK failed to load. Please check your internet connection.');
         return;
       }
 
-      // Step 1: Create Razorpay Order on Backend
-      const orderRes = await fetch(
-        `${API}/payments/order`,
+      // Step 1: Create MongoDB Order
+      const createOrderRes = await fetch(
+        `${API}/orders`,
         {
           method: 'POST',
           headers: {
@@ -2189,35 +2189,66 @@ function Cart({
             Authorization: `Bearer ${token}`
           },
           body: JSON.stringify({
-            amount: total
+            restaurant: cart[0].restaurant,
+            items: cart,
+            total,
+            address
           })
         }
       );
 
-      const orderData = await orderRes.json();
+      const createdOrderData = await createOrderRes.json();
 
-      if (!orderRes.ok) {
+      if (!createOrderRes.ok) {
+        setLoading(false);
         setMsg(
-          orderData.message || 'Could not initiate Razorpay order'
+          createdOrderData.message || 'Could not create initial order'
         );
         return;
       }
 
-      const razorpayOrder = orderData.order || orderData;
+      const orderId = createdOrderData.order?._id || createdOrderData._id;
 
-      // Step 2: Open Razorpay Checkout Modal
+      setMsg('Opening Razorpay... 💳');
+
+      // Step 2: Create Razorpay Order using orderId
+      const razorpayOrderRes = await fetch(
+        `${API}/payments/create-order`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            orderId
+          })
+        }
+      );
+
+      const razorpayData = await razorpayOrderRes.json();
+
+      if (!razorpayOrderRes.ok) {
+        setLoading(false);
+        setMsg(
+          razorpayData.message || 'Failed to initialize payment with Razorpay'
+        );
+        return;
+      }
+
+      // Step 3: Open Razorpay Checkout Modal
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_placeholder',
-        amount: razorpayOrder.amount,
-        currency: razorpayOrder.currency || 'INR',
+        key: razorpayData.key,
+        amount: razorpayData.amount,
+        currency: razorpayData.currency || 'INR',
         name: 'Foodie',
-        description: 'Order Payment',
-        order_id: razorpayOrder.id,
+        description: `Payment for Order #${orderId}`,
+        order_id: razorpayData.razorpayOrderId,
         handler: async function (response) {
           try {
-            setMsg('Verifying payment... ⏳');
+            setMsg('Verifying payment... 🔐');
 
-            // Step 3: Verify Payment Signature & Create App Order
+            // Step 4: Verify Payment Signature on Backend
             const verifyRes = await fetch(
               `${API}/payments/verify`,
               {
@@ -2230,10 +2261,7 @@ function Cart({
                   razorpay_order_id: response.razorpay_order_id,
                   razorpay_payment_id: response.razorpay_payment_id,
                   razorpay_signature: response.razorpay_signature,
-                  restaurant: cart[0].restaurant,
-                  items: cart,
-                  total,
-                  address
+                  orderId: razorpayData.orderId
                 })
               }
             );
@@ -2248,7 +2276,7 @@ function Cart({
             }
 
             setCart([]);
-            setMsg('Payment successful! Order placed 🎉');
+            setMsg('Payment verified! Order placed 🎉');
 
             setTimeout(() => {
               nav('/orders');
@@ -2256,32 +2284,35 @@ function Cart({
 
           } catch (verifyError) {
             console.error('Verification error:', verifyError);
-            setMsg('Payment verification failed. Please try again.');
+            setMsg('Payment verification failed. Please check your orders.');
+          } finally {
+            setLoading(false);
           }
         },
         theme: {
           color: '#ff5a1f'
+        },
+        modal: {
+          ondismiss: function () {
+            setLoading(false);
+            setMsg('Payment was cancelled.');
+          }
         }
       };
 
       const rzp = new window.Razorpay(options);
 
       rzp.on('payment.failed', function (response) {
+        setLoading(false);
         setMsg(`Payment failed: ${response.error.description}`);
       });
 
       rzp.open();
 
     } catch (error) {
-
-      console.error(
-        'Order/Payment error:',
-        error
-      );
-
-      setMsg(
-        'Could not process payment. Please try again.'
-      );
+      console.error('Checkout error:', error);
+      setLoading(false);
+      setMsg('Could not process payment. Please try again.');
     }
   };
 
@@ -2393,8 +2424,9 @@ function Cart({
           <button
             className="primary"
             onClick={place}
+            disabled={loading}
           >
-            Pay with Razorpay 💳
+            {loading ? 'Processing... 💳' : 'Pay with Razorpay 💳'}
           </button>
 
 
