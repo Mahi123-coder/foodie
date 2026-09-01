@@ -1124,20 +1124,6 @@ function Home() {
           .filter(Boolean);
 
 
-      /*
-       * =====================================================
-       * GET MENU ITEM IMAGES FOR AI RESULTS
-       * =====================================================
-       *
-       * Your backend recommendation response gives us
-       * menuItemId, but the restaurant list normally only
-       * contains the restaurant image.
-       *
-       * So we fetch each restaurant's menu and find the
-       * recommended dish. This allows the actual dish image
-       * uploaded through Admin to appear in the AI result.
-       */
-
       const resultsWithDishImages =
         await Promise.all(
           formattedResults.map(
@@ -1572,10 +1558,6 @@ function Home() {
                 to={`/restaurant/${r._id}`}
                 className="aiCard"
               >
-
-                {/* =================================================
-                    AI DISH IMAGE
-                ================================================= */}
 
                 <img
                   src={
@@ -2055,11 +2037,6 @@ function Restaurant({ add }) {
             key={m._id}
           >
 
-            {/* =================================================
-                DISH IMAGE
-                THIS IS THE IMPORTANT PART
-            ================================================= */}
-
             <img
               src={getImage(
                 m.image,
@@ -2120,7 +2097,26 @@ function Restaurant({ add }) {
 
 
 // =========================================================
-// CART
+// HELPER: LOAD RAZORPAY SCRIPT
+// =========================================================
+
+const loadRazorpayScript = () => {
+  return new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
+
+// =========================================================
+// CART (WITH RAZORPAY INTEGRATION)
 // =========================================================
 
 function Cart({
@@ -2168,68 +2164,123 @@ function Cart({
       return;
     }
 
+    if (!address.trim()) {
+      setMsg('Please enter a delivery address.');
+      return;
+    }
+
 
     try {
+      setMsg('Initializing payment... 💳');
 
-      const res =
-        await fetch(
-          `${API}/orders`,
-          {
-            method: 'POST',
-
-            headers: {
-              'Content-Type':
-                'application/json',
-
-              Authorization:
-                `Bearer ${token}`
-            },
-
-            body: JSON.stringify({
-              restaurant:
-                cart[0].restaurant,
-
-              items: cart,
-
-              total,
-
-              address
-            })
-          }
-        );
-
-
-      const body =
-        await res.json();
-
-
-      if (!res.ok) {
-
-        setMsg(
-          body.message ||
-          'Could not place order'
-        );
-
+      const isScriptLoaded = await loadRazorpayScript();
+      if (!isScriptLoaded) {
+        setMsg('Razorpay SDK failed to load. Check your internet connection.');
         return;
       }
 
-
-      setCart([]);
-
-
-      setMsg(
-        'Order placed! 🎉'
+      // Step 1: Create Razorpay Order on Backend
+      const orderRes = await fetch(
+        `${API}/payments/order`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            amount: total
+          })
+        }
       );
+
+      const orderData = await orderRes.json();
+
+      if (!orderRes.ok) {
+        setMsg(
+          orderData.message || 'Could not initiate Razorpay order'
+        );
+        return;
+      }
+
+      const razorpayOrder = orderData.order || orderData;
+
+      // Step 2: Open Razorpay Checkout Modal
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_placeholder',
+        amount: razorpayOrder.amount,
+        currency: razorpayOrder.currency || 'INR',
+        name: 'Foodie',
+        description: 'Order Payment',
+        order_id: razorpayOrder.id,
+        handler: async function (response) {
+          try {
+            setMsg('Verifying payment... ⏳');
+
+            // Step 3: Verify Payment Signature & Create App Order
+            const verifyRes = await fetch(
+              `${API}/payments/verify`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature,
+                  restaurant: cart[0].restaurant,
+                  items: cart,
+                  total,
+                  address
+                })
+              }
+            );
+
+            const verifyData = await verifyRes.json();
+
+            if (!verifyRes.ok) {
+              setMsg(
+                verifyData.message || 'Payment verification failed'
+              );
+              return;
+            }
+
+            setCart([]);
+            setMsg('Payment successful! Order placed 🎉');
+
+            setTimeout(() => {
+              nav('/orders');
+            }, 1500);
+
+          } catch (verifyError) {
+            console.error('Verification error:', verifyError);
+            setMsg('Payment verification failed. Please try again.');
+          }
+        },
+        theme: {
+          color: '#ff5a1f'
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+
+      rzp.on('payment.failed', function (response) {
+        setMsg(`Payment failed: ${response.error.description}`);
+      });
+
+      rzp.open();
 
     } catch (error) {
 
       console.error(
-        'Order error:',
+        'Order/Payment error:',
         error
       );
 
       setMsg(
-        'Could not place order. Please try again.'
+        'Could not process payment. Please try again.'
       );
     }
   };
@@ -2343,7 +2394,7 @@ function Cart({
             className="primary"
             onClick={place}
           >
-            Place order
+            Pay with Razorpay 💳
           </button>
 
 
