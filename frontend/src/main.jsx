@@ -31,8 +31,7 @@ import Admin from './Admin.jsx';
 // API
 // =========================================================
 
-const API = 'https://foodie-pdft.onrender.com/api';
-
+const API = 'https://foodie-1.onrender.com/api'; // (or whatever the exact URL is in foodie-1 settings)
 
 // =========================================================
 // DEFAULT IMAGE
