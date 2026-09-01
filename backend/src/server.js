@@ -3,8 +3,8 @@ import 'dotenv/config';
 import { Router } from 'express';
 import { GoogleGenAI } from '@google/genai';
 
-import Restaurant from './models/Restaurant.js';
-import MenuItem from './models/MenuItem.js';
+import Restaurant from '../models/Restaurant.js';
+import MenuItem from '../models/MenuItem.js';
 
 const router = Router();
 
