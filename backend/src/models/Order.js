@@ -114,6 +114,14 @@ const orderSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  // =========================================================
+// RAZORPAY SIGNATURE
+// =========================================================
+
+razorpaySignature: {
+  type: String,
+  default: null
+},
 
 
   // =========================================================

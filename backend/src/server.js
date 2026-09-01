@@ -1,20 +1,18 @@
 import 'dotenv/config';
-
 import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
-
 import restaurantRoutes from './routes/restaurants.js';
 import authRoutes from './routes/auth.js';
 import orderRoutes from './routes/orders.js';
 import adminRoutes from './routes/adminRoutes.js';
 import aiRoutes from './routes/ai.js';
+import paymentRoutes from './routes/payments.js';
 
 
 // =============================================================
 // EXPRESS APP
 // =============================================================
-
 const app = express();
 
 
@@ -106,7 +104,10 @@ app.use(
   '/api/ai',
   aiRoutes
 );
-
+app.use(
+  '/api/payments',
+  paymentRoutes
+);
 
 // =============================================================
 // 404 HANDLER
