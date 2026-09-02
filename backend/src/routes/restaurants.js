@@ -21,5 +21,17 @@ router.get('/:id', async (req, res) => {
     res.json({ restaurant, menu });
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
+import MenuItem from '../models/MenuItem.js';
+
+// GET /api/restaurants/:id/menu
+router.get('/:id/menu', async (req, res) => {
+  try {
+    const items = await MenuItem.find({ restaurant: req.params.id });
+    res.json(items);
+  } catch (error) {
+    console.error('Fetch menu items error:', error);
+    res.status(500).json({ message: 'Failed to fetch menu items' });
+  }
+});
 
 export default router;
