@@ -45,6 +45,7 @@ router.post('/create', async (req, res) => {
       total: 0,
       isGroupOrder: true,
       groupCode,
+      splitMode: 'ITEMIZED',
       groupMembers: [
         {
           user: userId,
@@ -82,7 +83,7 @@ router.get('/:groupCode', async (req, res) => {
       groupCode: req.params.groupCode.toUpperCase(),
       isGroupOrder: true
     })
-      .populate('restaurant') // Populates full restaurant document
+      .populate('restaurant')
       .populate('groupMembers.user', 'name email')
       .populate('groupMembers.items.menuItem');
 
@@ -102,41 +103,43 @@ router.get('/:groupCode', async (req, res) => {
 });
 
 // =========================================================
-// JOIN GROUP ORDER
+// JOIN GROUP ORDER (Allows Re-entry)
 // =========================================================
 router.post('/:groupCode/join', async (req, res) => {
   try {
     const userId = req.user.id || req.user._id;
     const { name } = req.body;
 
-    if (!name || !name.trim()) {
-      return res.status(400).json({
-        message: 'name is required'
-      });
-    }
-
     const order = await Order.findOne({
       groupCode: req.params.groupCode.toUpperCase(),
       isGroupOrder: true
-    });
+    })
+      .populate('restaurant')
+      .populate('groupMembers.user', 'name email')
+      .populate('groupMembers.items.menuItem');
 
     if (!order) {
-      return res.status(404).json({
-        message: 'Group order not found'
-      });
+      return res.status(404).json({ message: 'Group order not found' });
     }
 
-    // Prevent duplicate joining by the same authenticated user
+    // Check if user is already a member
     const alreadyJoined = order.groupMembers.some(
-      (member) => member.user && member.user.toString() === userId.toString()
+      (member) => member.user && (member.user._id || member.user).toString() === userId.toString()
     );
 
+    // Reconnection: Admit existing members directly
     if (alreadyJoined) {
-      return res.status(400).json({
-        message: 'User already joined this group'
+      return res.json({
+        message: 'Welcome back to the group!',
+        order
       });
     }
 
+    if (!name || !name.trim()) {
+      return res.status(400).json({ message: 'Name is required to join' });
+    }
+
+    // Add new member
     order.groupMembers.push({
       user: userId,
       name: name.trim(),
@@ -144,6 +147,14 @@ router.post('/:groupCode/join', async (req, res) => {
       shareAmount: 0,
       paymentStatus: 'PENDING'
     });
+
+    // If room is in EQUAL mode, recalculate split for new member count
+    if (order.splitMode === 'EQUAL' && order.groupMembers.length > 0) {
+      const equalShare = Math.round(order.total / order.groupMembers.length);
+      order.groupMembers.forEach((m) => {
+        m.shareAmount = equalShare;
+      });
+    }
 
     await order.save();
     await order.populate('restaurant');
@@ -231,17 +242,29 @@ router.post('/:groupCode/items', async (req, res) => {
       });
     }
 
-    // Recalculate this member's personal share
-    member.shareAmount = member.items.reduce(
-      (sum, item) => sum + Number(item.price) * Number(item.quantity),
-      0
-    );
+    // Grand total is always the sum of all ordered items across all members
+    order.total = order.groupMembers.reduce((sum, m) => {
+      const memberSum = m.items.reduce(
+        (iSum, item) => iSum + Number(item.price) * Number(item.quantity),
+        0
+      );
+      return sum + memberSum;
+    }, 0);
 
-    // Recalculate grand total
-    order.total = order.groupMembers.reduce(
-      (total, m) => total + Number(m.shareAmount || 0),
-      0
-    );
+    // Calculate individual shares based on active splitMode
+    if (order.splitMode === 'EQUAL' && order.groupMembers.length > 0) {
+      const equalShare = Math.round(order.total / order.groupMembers.length);
+      order.groupMembers.forEach((m) => {
+        m.shareAmount = equalShare;
+      });
+    } else {
+      order.groupMembers.forEach((m) => {
+        m.shareAmount = m.items.reduce(
+          (iSum, item) => iSum + Number(item.price) * Number(item.quantity),
+          0
+        );
+      });
+    }
 
     order.allMembersPaid = false;
     order.paymentStatus = 'PENDING';
@@ -259,6 +282,52 @@ router.post('/:groupCode/items', async (req, res) => {
     return res.status(500).json({
       message: 'Failed to add item'
     });
+  }
+});
+
+// =========================================================
+// TOGGLE SPLIT MODE ('ITEMIZED' vs 'EQUAL')
+// =========================================================
+router.post('/:groupCode/split-mode', async (req, res) => {
+  try {
+    const { splitMode } = req.body;
+
+    if (!['ITEMIZED', 'EQUAL'].includes(splitMode)) {
+      return res.status(400).json({ message: 'Invalid split mode' });
+    }
+
+    const order = await Order.findOne({
+      groupCode: req.params.groupCode.toUpperCase(),
+      isGroupOrder: true
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: 'Group order not found' });
+    }
+
+    order.splitMode = splitMode;
+
+    const memberCount = order.groupMembers.length;
+
+    if (splitMode === 'EQUAL' && memberCount > 0) {
+      const equalShare = Math.round(order.total / memberCount);
+      order.groupMembers.forEach((m) => {
+        m.shareAmount = equalShare;
+      });
+    } else {
+      order.groupMembers.forEach((m) => {
+        m.shareAmount = m.items.reduce(
+          (sum, it) => sum + Number(it.price) * Number(it.quantity),
+          0
+        );
+      });
+    }
+
+    await order.save();
+    return res.json({ message: `Split mode updated to ${splitMode}`, order });
+  } catch (error) {
+    console.error('Split mode update error:', error);
+    return res.status(500).json({ message: 'Failed to update split mode' });
   }
 });
 
@@ -326,9 +395,8 @@ router.post('/:groupCode/pay', async (req, res) => {
       return res.status(404).json({ message: 'Group order not found' });
     }
 
-    // Find the logged-in member
     const member = order.groupMembers.find(
-      (m) => m.user && m.user.toString() === userId.toString()
+      (m) => m.user && (m.user._id || m.user).toString() === userId.toString()
     );
 
     if (!member) {
@@ -336,13 +404,12 @@ router.post('/:groupCode/pay', async (req, res) => {
     }
 
     if (member.shareAmount <= 0) {
-      return res.status(400).json({ message: 'Please add items before paying' });
+      return res.status(400).json({ message: 'No payable balance found.' });
     }
 
-    // Mark this member as paid
     member.paymentStatus = 'PAID';
 
-    // Check if every member with items has completed payment
+    // Verify if all members who have a share have completed payment
     const allPaid = order.groupMembers
       .filter((m) => m.shareAmount > 0)
       .every((m) => m.paymentStatus === 'PAID');

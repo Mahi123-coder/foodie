@@ -206,7 +206,30 @@ function GroupOrder() {
   };
 
   // ---------------------------------------------------------
-  // 5. JOIN GROUP
+  // 5. CHANGE SPLIT MODE
+  // ---------------------------------------------------------
+  const handleSplitModeChange = async (newMode) => {
+    try {
+      const res = await fetch(`${API}/group-orders/${groupCode}/split-mode`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ splitMode: newMode })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Could not change split mode');
+
+      loadGroup(groupCode);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  // ---------------------------------------------------------
+  // 6. JOIN GROUP (Handles both new join and re-entry)
   // ---------------------------------------------------------
   const joinGroup = async () => {
     setMessage('');
@@ -216,16 +239,11 @@ function GroupOrder() {
       return;
     }
 
-    if (!name.trim()) {
-      setMessage('Please enter your name.');
-      return;
-    }
+    const code = joinCode.trim().toUpperCase();
 
     try {
       setLoading(true);
-      setMessage('Joining group...');
-
-      const code = joinCode.trim().toUpperCase();
+      setMessage('Entering group...');
 
       const response = await fetch(`${API}/group-orders/${code}/join`, {
         method: 'POST',
@@ -234,22 +252,22 @@ function GroupOrder() {
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          name: name.trim()
+          name: name.trim() || 'Member'
         })
       });
 
       const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Could not join group');
+
+      // If already joined or joined successfully, enter the room
+      if (response.ok || data.message?.includes('already joined') || data.message?.includes('Welcome back')) {
+        setGroupCode(code);
+        await loadGroup(code);
+        setMode('dashboard');
+        setMessage(response.ok ? 'Entered group room! 🎉' : 'Reconnected to group room! 👋');
+        return;
       }
 
-      const joinedOrder = data.order || data.groupOrder || data;
-
-      setGroup(joinedOrder);
-      setGroupCode(joinedOrder.groupCode || code);
-      setMenuItems([]); // reset menu items for new room
-      setMode('dashboard');
-      setMessage('Joined group successfully! 🎉');
+      throw new Error(data.message || 'Could not join group');
     } catch (error) {
       console.error('Join group error:', error);
       setMessage(error.message);
@@ -259,7 +277,7 @@ function GroupOrder() {
   };
 
   // ---------------------------------------------------------
-  // 6. ADD ITEM TO GROUP ORDER
+  // 7. ADD ITEM TO GROUP ORDER
   // ---------------------------------------------------------
   const handleAddItem = async (menuItemId) => {
     try {
@@ -290,7 +308,7 @@ function GroupOrder() {
   };
 
   // ---------------------------------------------------------
-  // 7. PAY MEMBER SHARE
+  // 8. PAY MEMBER SHARE
   // ---------------------------------------------------------
   const handlePayShare = async () => {
     try {
@@ -317,7 +335,7 @@ function GroupOrder() {
     }
   };
 
-  // Find the current logged in member within the group members array
+  // Find the current logged-in member within the group members array
   const myMemberRecord = group?.groupMembers?.find((m) => {
     const memberId = m.user?._id || m.user;
     return memberId && currentUserId && memberId.toString() === currentUserId.toString();
@@ -638,8 +656,67 @@ function GroupOrder() {
         )}
       </section>
 
+      {/* SPLIT BILL SELECTOR */}
+      <section
+        style={{
+          marginTop: '35px',
+          padding: '20px',
+          borderRadius: '14px',
+          background: '#fff',
+          border: '1px solid #e0e0e0',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
+        }}
+      >
+        <h3 style={{ margin: '0 0 6px 0', fontSize: '18px' }}>How do you want to split the bill?</h3>
+        <p style={{ color: '#666', fontSize: '13px', margin: '0 0 16px 0' }}>
+          Choose how individual payment shares are calculated for this room.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
+          {/* OPTION 1: ITEMIZED */}
+          <div
+            onClick={() => handleSplitModeChange('ITEMIZED')}
+            style={{
+              padding: '16px',
+              borderRadius: '12px',
+              border: (!group?.splitMode || group?.splitMode === 'ITEMIZED') ? '2px solid #ff5722' : '1px solid #ddd',
+              background: (!group?.splitMode || group?.splitMode === 'ITEMIZED') ? '#fff7f2' : '#fafafa',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            <div style={{ fontWeight: 'bold', fontSize: '15px', color: '#222' }}>
+              🧾 Pay for what I ordered
+            </div>
+            <div style={{ color: '#666', fontSize: '13px', marginTop: '6px', lineHeight: '1.4' }}>
+              Each person pays only for the dishes they added to their plate.
+            </div>
+          </div>
+
+          {/* OPTION 2: EQUAL */}
+          <div
+            onClick={() => handleSplitModeChange('EQUAL')}
+            style={{
+              padding: '16px',
+              borderRadius: '12px',
+              border: group?.splitMode === 'EQUAL' ? '2px solid #ff5722' : '1px solid #ddd',
+              background: group?.splitMode === 'EQUAL' ? '#fff7f2' : '#fafafa',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            <div style={{ fontWeight: 'bold', fontSize: '15px', color: '#222' }}>
+              ⚖️ Split total amount equally among everyone
+            </div>
+            <div style={{ color: '#666', fontSize: '13px', marginTop: '6px', lineHeight: '1.4' }}>
+              Total ₹{group?.total || 0} divided equally (₹{group?.groupMembers?.length ? Math.round((group.total || 0) / group.groupMembers.length) : 0} / person).
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* MEMBERS, SELECTIONS, AND SPLIT BREAKDOWN */}
-      <section style={{ marginTop: '40px' }}>
+      <section style={{ marginTop: '35px' }}>
         <h2>Group Members ({group?.groupMembers?.length || 0})</h2>
         {group?.groupMembers?.length ? (
           group.groupMembers.map((member, index) => {
