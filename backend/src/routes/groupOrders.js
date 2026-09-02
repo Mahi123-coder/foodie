@@ -8,9 +8,7 @@ import { auth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// =========================================================
-// AUTHENTICATION (Applies to all group order routes)
-// =========================================================
+// Apply auth middleware to all group order routes
 router.use(auth);
 
 // =========================================================
@@ -21,21 +19,18 @@ router.post('/create', async (req, res) => {
     const userId = req.user.id || req.user._id;
     const { restaurant, address } = req.body;
 
-    // 1. Check required fields
     if (!restaurant || !address) {
       return res.status(400).json({
         message: 'restaurant and address are required'
       });
     }
 
-    // 2. Validate MongoDB ObjectId for restaurant to prevent CastError crashes
     if (!mongoose.Types.ObjectId.isValid(restaurant)) {
       return res.status(400).json({
         message: 'Invalid restaurant ID. Must be a valid 24-character ObjectId'
       });
     }
 
-    // 3. Generate short unique group code (8 characters uppercase hex)
     const groupCode = crypto.randomBytes(4).toString('hex').toUpperCase();
 
     const order = await Order.create({
@@ -122,12 +117,10 @@ router.post('/:groupCode/join', async (req, res) => {
       return res.status(404).json({ message: 'Group order not found' });
     }
 
-    // Check if user is already a member
     const alreadyJoined = order.groupMembers.some(
       (member) => member.user && (member.user._id || member.user).toString() === userId.toString()
     );
 
-    // Reconnection: Admit existing members directly
     if (alreadyJoined) {
       return res.json({
         message: 'Welcome back to the group!',
@@ -139,7 +132,6 @@ router.post('/:groupCode/join', async (req, res) => {
       return res.status(400).json({ message: 'Name is required to join' });
     }
 
-    // Add new member
     order.groupMembers.push({
       user: userId,
       name: name.trim(),
@@ -148,7 +140,6 @@ router.post('/:groupCode/join', async (req, res) => {
       paymentStatus: 'PENDING'
     });
 
-    // If room is in EQUAL mode, recalculate split for new member count
     if (order.splitMode === 'EQUAL' && order.groupMembers.length > 0) {
       const equalShare = Math.round(order.total / order.groupMembers.length);
       order.groupMembers.forEach((m) => {
@@ -205,7 +196,7 @@ router.post('/:groupCode/items', async (req, res) => {
     }
 
     const member = order.groupMembers.find(
-      (m) => m.user && m.user.toString() === userId.toString()
+      (m) => m.user && (m.user._id || m.user).toString() === userId.toString()
     );
 
     if (!member) {
@@ -242,7 +233,6 @@ router.post('/:groupCode/items', async (req, res) => {
       });
     }
 
-    // Grand total is always the sum of all ordered items across all members
     order.total = order.groupMembers.reduce((sum, m) => {
       const memberSum = m.items.reduce(
         (iSum, item) => iSum + Number(item.price) * Number(item.quantity),
@@ -251,7 +241,6 @@ router.post('/:groupCode/items', async (req, res) => {
       return sum + memberSum;
     }, 0);
 
-    // Calculate individual shares based on active splitMode
     if (order.splitMode === 'EQUAL' && order.groupMembers.length > 0) {
       const equalShare = Math.round(order.total / order.groupMembers.length);
       order.groupMembers.forEach((m) => {
@@ -356,7 +345,7 @@ router.get('/:groupCode/share/:userId', async (req, res) => {
     }
 
     const member = order.groupMembers.find(
-      (m) => m.user && m.user.toString() === loggedInUserId.toString()
+      (m) => m.user && (m.user._id || m.user).toString() === loggedInUserId.toString()
     );
 
     if (!member) {
@@ -409,7 +398,6 @@ router.post('/:groupCode/pay', async (req, res) => {
 
     member.paymentStatus = 'PAID';
 
-    // Verify if all members who have a share have completed payment
     const allPaid = order.groupMembers
       .filter((m) => m.shareAmount > 0)
       .every((m) => m.paymentStatus === 'PAID');

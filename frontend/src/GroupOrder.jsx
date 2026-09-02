@@ -30,14 +30,14 @@ function GroupOrder() {
 
   const token = localStorage.getItem('token');
 
-  // Decode user ID safely from JWT token to identify the logged-in member
+  // Decode user ID safely from JWT token to support both Host and Joined Member
   const getLoggedInUserId = () => {
     if (!token) return null;
     try {
       const base64Url = token.split('.')[1];
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
       const payload = JSON.parse(window.atob(base64));
-      return payload.id || payload._id || payload.userId;
+      return payload.id || payload._id || payload.userId || payload.user?._id || payload.user?.id;
     } catch {
       return null;
     }
@@ -76,7 +76,7 @@ function GroupOrder() {
   }, [token, navigate]);
 
   // ---------------------------------------------------------
-  // 2. FETCH MENU (Fixed to prevent flickering on poll)
+  // 2. FETCH MENU (Fixed to avoid polling flickers)
   // ---------------------------------------------------------
   const restaurantId =
     typeof group?.restaurant === 'object'
@@ -86,7 +86,6 @@ function GroupOrder() {
   useEffect(() => {
     if (!restaurantId || !token || mode !== 'dashboard') return;
 
-    // Skip if menu is already loaded for this restaurant to stop the flicker
     if (menuItems.length > 0) return;
 
     const fetchMenu = async () => {
@@ -194,7 +193,7 @@ function GroupOrder() {
 
       setGroup(createdOrder);
       setGroupCode(code);
-      setMenuItems([]); // reset menu items for new room
+      setMenuItems([]);
       setMode('dashboard');
       setMessage('Group created successfully! 🎉');
     } catch (error) {
@@ -229,7 +228,7 @@ function GroupOrder() {
   };
 
   // ---------------------------------------------------------
-  // 6. JOIN GROUP (Handles both new join and re-entry)
+  // 6. JOIN GROUP (Handles re-entry smoothly)
   // ---------------------------------------------------------
   const joinGroup = async () => {
     setMessage('');
@@ -258,9 +257,9 @@ function GroupOrder() {
 
       const data = await response.json();
 
-      // If already joined or joined successfully, enter the room
       if (response.ok || data.message?.includes('already joined') || data.message?.includes('Welcome back')) {
         setGroupCode(code);
+        setMenuItems([]);
         await loadGroup(code);
         setMode('dashboard');
         setMessage(response.ok ? 'Entered group room! 🎉' : 'Reconnected to group room! 👋');
@@ -335,7 +334,7 @@ function GroupOrder() {
     }
   };
 
-  // Find the current logged-in member within the group members array
+  // Identify current member record
   const myMemberRecord = group?.groupMembers?.find((m) => {
     const memberId = m.user?._id || m.user;
     return memberId && currentUserId && memberId.toString() === currentUserId.toString();
@@ -673,7 +672,6 @@ function GroupOrder() {
         </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
-          {/* OPTION 1: ITEMIZED */}
           <div
             onClick={() => handleSplitModeChange('ITEMIZED')}
             style={{
@@ -681,19 +679,17 @@ function GroupOrder() {
               borderRadius: '12px',
               border: (!group?.splitMode || group?.splitMode === 'ITEMIZED') ? '2px solid #ff5722' : '1px solid #ddd',
               background: (!group?.splitMode || group?.splitMode === 'ITEMIZED') ? '#fff7f2' : '#fafafa',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
+              cursor: 'pointer'
             }}
           >
             <div style={{ fontWeight: 'bold', fontSize: '15px', color: '#222' }}>
               🧾 Pay for what I ordered
             </div>
-            <div style={{ color: '#666', fontSize: '13px', marginTop: '6px', lineHeight: '1.4' }}>
+            <div style={{ color: '#666', fontSize: '13px', marginTop: '6px' }}>
               Each person pays only for the dishes they added to their plate.
             </div>
           </div>
 
-          {/* OPTION 2: EQUAL */}
           <div
             onClick={() => handleSplitModeChange('EQUAL')}
             style={{
@@ -701,14 +697,13 @@ function GroupOrder() {
               borderRadius: '12px',
               border: group?.splitMode === 'EQUAL' ? '2px solid #ff5722' : '1px solid #ddd',
               background: group?.splitMode === 'EQUAL' ? '#fff7f2' : '#fafafa',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
+              cursor: 'pointer'
             }}
           >
             <div style={{ fontWeight: 'bold', fontSize: '15px', color: '#222' }}>
               ⚖️ Split total amount equally among everyone
             </div>
-            <div style={{ color: '#666', fontSize: '13px', marginTop: '6px', lineHeight: '1.4' }}>
+            <div style={{ color: '#666', fontSize: '13px', marginTop: '6px' }}>
               Total ₹{group?.total || 0} divided equally (₹{group?.groupMembers?.length ? Math.round((group.total || 0) / group.groupMembers.length) : 0} / person).
             </div>
           </div>
@@ -777,6 +772,27 @@ function GroupOrder() {
                       <span style={{ color: '#ef6c00', fontWeight: 'bold' }}>⏳ Pending</span>
                     )}
                   </div>
+
+                  {/* DIRECT PAY BUTTON FOR THIS MEMBER */}
+                  {isMe && member.paymentStatus !== 'PAID' && (
+                    <button
+                      onClick={handlePayShare}
+                      disabled={paying || (member.shareAmount || 0) <= 0}
+                      style={{
+                        marginTop: '8px',
+                        padding: '6px 14px',
+                        backgroundColor: (member.shareAmount || 0) > 0 ? '#2e7d32' : '#aaa',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontWeight: 'bold',
+                        fontSize: '12px',
+                        cursor: paying || (member.shareAmount || 0) <= 0 ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      {paying ? 'Paying...' : `Pay ₹${member.shareAmount || 0} 💳`}
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -811,7 +827,6 @@ function GroupOrder() {
         </div>
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          {/* THE PAY BUTTON FOR CURRENT USER'S SPLIT */}
           {!isMySharePaid && (
             <button
               onClick={handlePayShare}
