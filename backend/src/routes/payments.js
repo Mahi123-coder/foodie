@@ -16,7 +16,7 @@ router.use(auth);
 
 
 // =============================================================
-// RAZORPAY CONFIG CHECK
+// RAZORPAY CONFIGURATION
 // =============================================================
 
 const razorpayKeyId = process.env.RAZORPAY_KEY_ID;
@@ -24,13 +24,19 @@ const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
 
 console.log('==============================================');
 console.log('RAZORPAY CONFIGURATION');
-console.log('RAZORPAY_KEY_ID configured:', Boolean(razorpayKeyId));
-console.log('RAZORPAY_KEY_SECRET configured:', Boolean(razorpayKeySecret));
+console.log(
+  'RAZORPAY_KEY_ID configured:',
+  Boolean(razorpayKeyId)
+);
+console.log(
+  'RAZORPAY_KEY_SECRET configured:',
+  Boolean(razorpayKeySecret)
+);
 console.log('==============================================');
 
 
 // =============================================================
-// CREATE RAZORPAY INSTANCE
+// RAZORPAY INSTANCE
 // =============================================================
 
 const razorpay =
@@ -43,33 +49,21 @@ const razorpay =
 
 
 // =============================================================
+// NORMAL PAYMENT
 // CREATE RAZORPAY ORDER
 // =============================================================
 
 router.post('/create-order', async (req, res) => {
   try {
 
-    // ---------------------------------------------------------
-    // CHECK RAZORPAY CONFIGURATION
-    // ---------------------------------------------------------
-
     if (!razorpay) {
-      console.error(
-        'Razorpay is not configured. Check RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.'
-      );
-
       return res.status(500).json({
-        message: 'Payment gateway is not configured',
+        message:
+          'Payment gateway is not configured',
       });
     }
 
-
-    // ---------------------------------------------------------
-    // GET ORDER ID
-    // ---------------------------------------------------------
-
     const { orderId } = req.body;
-
 
     if (!orderId) {
       return res.status(400).json({
@@ -77,16 +71,10 @@ router.post('/create-order', async (req, res) => {
       });
     }
 
-
-    // ---------------------------------------------------------
-    // FIND FOODIE ORDER
-    // ---------------------------------------------------------
-
     const order = await Order.findOne({
       _id: orderId,
       user: req.user.id,
     });
-
 
     if (!order) {
       return res.status(404).json({
@@ -94,21 +82,12 @@ router.post('/create-order', async (req, res) => {
       });
     }
 
-
-    // ---------------------------------------------------------
-    // PREVENT DUPLICATE PAYMENT
-    // ---------------------------------------------------------
-
     if (order.paymentStatus === 'PAID') {
       return res.status(400).json({
-        message: 'This order has already been paid for',
+        message:
+          'This order has already been paid for',
       });
     }
-
-
-    // ---------------------------------------------------------
-    // VALIDATE ORDER TOTAL
-    // ---------------------------------------------------------
 
     if (
       typeof order.total !== 'number' ||
@@ -120,49 +99,35 @@ router.post('/create-order', async (req, res) => {
       });
     }
 
+    const razorpayOrder =
+      await razorpay.orders.create({
+        amount: Math.round(order.total * 100),
+        currency: 'INR',
+        receipt: `order_${order._id}`,
+      });
 
-    // ---------------------------------------------------------
-    // CREATE RAZORPAY ORDER
-    // ---------------------------------------------------------
-
-    const razorpayOrder = await razorpay.orders.create({
-      amount: Math.round(order.total * 100),
-      currency: 'INR',
-      receipt: `order_${order._id}`,
-    });
-
-
-    // ---------------------------------------------------------
-    // SAVE RAZORPAY ORDER ID
-    // ---------------------------------------------------------
-
-    order.razorpayOrderId = razorpayOrder.id;
+    order.razorpayOrderId =
+      razorpayOrder.id;
 
     await order.save();
 
-
-    // ---------------------------------------------------------
-    // SEND DATA TO FRONTEND
-    // ---------------------------------------------------------
-
     return res.status(200).json({
       key: razorpayKeyId,
-
-      razorpayOrderId: razorpayOrder.id,
-
-      amount: razorpayOrder.amount,
-
-      currency: razorpayOrder.currency,
-
+      razorpayOrderId:
+        razorpayOrder.id,
+      amount:
+        razorpayOrder.amount,
+      currency:
+        razorpayOrder.currency,
       orderId: order._id,
     });
 
   } catch (error) {
 
-    console.error('==============================================');
-    console.error('RAZORPAY CREATE ORDER ERROR');
-    console.error(error);
-    console.error('==============================================');
+    console.error(
+      'RAZORPAY CREATE ORDER ERROR:',
+      error
+    );
 
     return res.status(500).json({
       message:
@@ -174,26 +139,19 @@ router.post('/create-order', async (req, res) => {
 
 
 // =============================================================
-// VERIFY RAZORPAY PAYMENT
+// NORMAL PAYMENT
+// VERIFY PAYMENT
 // =============================================================
 
 router.post('/verify', async (req, res) => {
   try {
 
-    // ---------------------------------------------------------
-    // CHECK RAZORPAY CONFIGURATION
-    // ---------------------------------------------------------
-
     if (!razorpayKeySecret) {
       return res.status(500).json({
-        message: 'Payment gateway is not configured',
+        message:
+          'Payment gateway is not configured',
       });
     }
-
-
-    // ---------------------------------------------------------
-    // GET PAYMENT DATA
-    // ---------------------------------------------------------
 
     const {
       razorpay_order_id,
@@ -202,11 +160,6 @@ router.post('/verify', async (req, res) => {
       orderId,
     } = req.body;
 
-
-    // ---------------------------------------------------------
-    // VALIDATE PAYMENT DATA
-    // ---------------------------------------------------------
-
     if (
       !razorpay_order_id ||
       !razorpay_payment_id ||
@@ -214,20 +167,15 @@ router.post('/verify', async (req, res) => {
       !orderId
     ) {
       return res.status(400).json({
-        message: 'Payment details are incomplete',
+        message:
+          'Payment details are incomplete',
       });
     }
-
-
-    // ---------------------------------------------------------
-    // FIND USER'S ORDER
-    // ---------------------------------------------------------
 
     const order = await Order.findOne({
       _id: orderId,
       user: req.user.id,
     });
-
 
     if (!order) {
       return res.status(404).json({
@@ -235,24 +183,15 @@ router.post('/verify', async (req, res) => {
       });
     }
 
-
-    // ---------------------------------------------------------
-    // CHECK RAZORPAY ORDER ID
-    // ---------------------------------------------------------
-
     if (
-      order.razorpayOrderId !== razorpay_order_id
+      order.razorpayOrderId !==
+      razorpay_order_id
     ) {
       return res.status(400).json({
         message:
           'Razorpay order does not match this order',
       });
     }
-
-
-    // ---------------------------------------------------------
-    // GENERATE EXPECTED SIGNATURE
-    // ---------------------------------------------------------
 
     const generatedSignature =
       crypto
@@ -265,35 +204,30 @@ router.post('/verify', async (req, res) => {
         )
         .digest('hex');
 
-
-    // ---------------------------------------------------------
-    // COMPARE SIGNATURES
-    // ---------------------------------------------------------
-
     const signaturesMatch =
       generatedSignature.length ===
         razorpay_signature.length &&
       crypto.timingSafeEqual(
-        Buffer.from(generatedSignature),
-        Buffer.from(razorpay_signature)
+        Buffer.from(
+          generatedSignature
+        ),
+        Buffer.from(
+          razorpay_signature
+        )
       );
-
 
     if (!signaturesMatch) {
 
-      order.paymentStatus = 'FAILED';
+      order.paymentStatus =
+        'FAILED';
 
       await order.save();
 
       return res.status(400).json({
-        message: 'Payment verification failed',
+        message:
+          'Payment verification failed',
       });
     }
-
-
-    // ---------------------------------------------------------
-    // PAYMENT SUCCESS
-    // ---------------------------------------------------------
 
     order.paymentStatus = 'PAID';
 
@@ -305,24 +239,18 @@ router.post('/verify', async (req, res) => {
 
     await order.save();
 
-
-    // ---------------------------------------------------------
-    // SUCCESS
-    // ---------------------------------------------------------
-
     return res.status(200).json({
       message:
         'Payment verified successfully 🎉',
-
       order,
     });
 
   } catch (error) {
 
-    console.error('==============================================');
-    console.error('RAZORPAY PAYMENT VERIFICATION ERROR');
-    console.error(error);
-    console.error('==============================================');
+    console.error(
+      'RAZORPAY PAYMENT VERIFICATION ERROR:',
+      error
+    );
 
     return res.status(500).json({
       message:
@@ -331,6 +259,317 @@ router.post('/verify', async (req, res) => {
     });
   }
 });
+
+
+// =============================================================
+// GROUP PAYMENT
+// CREATE RAZORPAY ORDER FOR MEMBER
+// =============================================================
+
+router.post(
+  '/group/create-order',
+  async (req, res) => {
+
+    try {
+
+      if (!razorpay) {
+        return res.status(500).json({
+          message:
+            'Payment gateway is not configured',
+        });
+      }
+
+      const { orderId } = req.body;
+
+      if (!orderId) {
+        return res.status(400).json({
+          message: 'Order ID is required',
+        });
+      }
+
+      // Find group order
+      const order =
+        await Order.findOne({
+          _id: orderId,
+          isGroupOrder: true,
+        });
+
+      if (!order) {
+        return res.status(404).json({
+          message:
+            'Group order not found',
+        });
+      }
+
+      // Find logged-in member
+      const member =
+        order.groupMembers.find(
+          member =>
+            member.user.toString() ===
+            req.user.id.toString()
+        );
+
+      if (!member) {
+        return res.status(403).json({
+          message:
+            'You are not a member of this group order',
+        });
+      }
+
+      // Already paid
+      if (
+        member.paymentStatus ===
+        'PAID'
+      ) {
+        return res.status(400).json({
+          message:
+            'You have already paid your share',
+        });
+      }
+
+      // Validate share
+      if (
+        typeof member.shareAmount !==
+          'number' ||
+        !Number.isFinite(
+          member.shareAmount
+        ) ||
+        member.shareAmount <= 0
+      ) {
+        return res.status(400).json({
+          message:
+            'Your order share is invalid',
+        });
+      }
+
+      // Create Razorpay order
+      const razorpayOrder =
+        await razorpay.orders.create({
+          amount: Math.round(
+            member.shareAmount * 100
+          ),
+          currency: 'INR',
+          receipt:
+            `group_${order._id}_${member.user}`,
+        });
+
+      // Save Razorpay order ID
+      member.razorpayOrderId =
+        razorpayOrder.id;
+
+      await order.save();
+
+      return res.status(200).json({
+        key: razorpayKeyId,
+
+        razorpayOrderId:
+          razorpayOrder.id,
+
+        amount:
+          razorpayOrder.amount,
+
+        currency:
+          razorpayOrder.currency,
+
+        orderId:
+          order._id,
+
+        shareAmount:
+          member.shareAmount,
+      });
+
+    } catch (error) {
+
+      console.error(
+        'GROUP RAZORPAY CREATE ORDER ERROR:',
+        error
+      );
+
+      return res.status(500).json({
+        message:
+          error?.message ||
+          'Could not create group payment',
+      });
+    }
+  }
+);
+
+
+// =============================================================
+// GROUP PAYMENT
+// VERIFY MEMBER PAYMENT
+// =============================================================
+
+router.post(
+  '/group/verify',
+  async (req, res) => {
+
+    try {
+
+      if (!razorpayKeySecret) {
+        return res.status(500).json({
+          message:
+            'Payment gateway is not configured',
+        });
+      }
+
+      const {
+        razorpay_order_id,
+        razorpay_payment_id,
+        razorpay_signature,
+        orderId,
+      } = req.body;
+
+      if (
+        !razorpay_order_id ||
+        !razorpay_payment_id ||
+        !razorpay_signature ||
+        !orderId
+      ) {
+        return res.status(400).json({
+          message:
+            'Payment details are incomplete',
+        });
+      }
+
+      // Find group order
+      const order =
+        await Order.findOne({
+          _id: orderId,
+          isGroupOrder: true,
+        });
+
+      if (!order) {
+        return res.status(404).json({
+          message:
+            'Group order not found',
+        });
+      }
+
+      // Find logged-in member
+      const member =
+        order.groupMembers.find(
+          member =>
+            member.user.toString() ===
+            req.user.id.toString()
+        );
+
+      if (!member) {
+        return res.status(403).json({
+          message:
+            'You are not a member of this group order',
+        });
+      }
+
+      // Check Razorpay order ID
+      if (
+        member.razorpayOrderId !==
+        razorpay_order_id
+      ) {
+        return res.status(400).json({
+          message:
+            'Razorpay order does not match your group share',
+        });
+      }
+
+      // Generate expected signature
+      const generatedSignature =
+        crypto
+          .createHmac(
+            'sha256',
+            razorpayKeySecret
+          )
+          .update(
+            `${razorpay_order_id}|${razorpay_payment_id}`
+          )
+          .digest('hex');
+
+      // Compare signatures
+      const signaturesMatch =
+        generatedSignature.length ===
+          razorpay_signature.length &&
+        crypto.timingSafeEqual(
+          Buffer.from(
+            generatedSignature
+          ),
+          Buffer.from(
+            razorpay_signature
+          )
+        );
+
+      if (!signaturesMatch) {
+
+        member.paymentStatus =
+          'FAILED';
+
+        await order.save();
+
+        return res.status(400).json({
+          message:
+            'Payment verification failed',
+        });
+      }
+
+      // Mark member as paid
+      member.paymentStatus =
+        'PAID';
+
+      member.razorpayPaymentId =
+        razorpay_payment_id;
+
+      // Check whether everyone has paid
+      const everyonePaid =
+        order.groupMembers.every(
+          member =>
+            member.paymentStatus ===
+            'PAID'
+        );
+
+      order.allMembersPaid =
+        everyonePaid;
+
+      // If everyone paid,
+      // mark the complete order as paid
+      if (everyonePaid) {
+        order.paymentStatus =
+          'PAID';
+
+        order.status =
+          'PLACED';
+      }
+
+      await order.save();
+
+      return res.status(200).json({
+        message:
+          everyonePaid
+            ? 'Everyone has paid! Group order confirmed 🎉'
+            : 'Your payment was verified successfully 🎉',
+
+        yourShare:
+          member.shareAmount,
+
+        allMembersPaid:
+          everyonePaid,
+
+        order,
+      });
+
+    } catch (error) {
+
+      console.error(
+        'GROUP RAZORPAY VERIFY ERROR:',
+        error
+      );
+
+      return res.status(500).json({
+        message:
+          error?.message ||
+          'Could not verify group payment',
+      });
+    }
+  }
+);
 
 
 // =============================================================

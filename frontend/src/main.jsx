@@ -25,7 +25,7 @@ import 'leaflet/dist/leaflet.css';
 import './styles.css';
 
 import Admin from './Admin.jsx';
-
+import GroupOrder from './GroupOrder.jsx';
 
 // =========================================================
 // API
@@ -263,14 +263,19 @@ function App() {
         />
 
         <Route
-          path="/orders"
-          element={<Orders />}
-        />
+  path="/orders"
+  element={<Orders />}
+/>
 
-        <Route
-          path="/admin"
-          element={<Admin />}
-        />
+<Route
+  path="/group-order"
+  element={<GroupOrder />}
+/>
+
+<Route
+  path="/admin"
+  element={<Admin />}
+/>
 
       </Routes>
     </>
@@ -305,7 +310,9 @@ function Header({ count }) {
         <Link to="/login">
           Login
         </Link>
-
+        <Link to="/group-order">
+        Group Order 👥
+        </Link>
         <Link to="/register">
           Sign Up
         </Link>
