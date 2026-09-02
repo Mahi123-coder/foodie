@@ -3,6 +3,31 @@ import { useNavigate } from 'react-router-dom';
 
 const API = 'https://foodie-1-3b27.onrender.com/api';
 
+function getUserIdFromToken(token) {
+  try {
+    if (!token) return null;
+
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+
+    const base64 = parts[1]
+      .replace(/-/g, '+')
+      .replace(/_/g, '/');
+
+    const padded = base64.padEnd(
+      base64.length + (4 - (base64.length % 4)) % 4,
+      '='
+    );
+
+    const payload = JSON.parse(atob(padded));
+
+    return payload.id || payload._id || payload.userId || null;
+  } catch (error) {
+    console.error('Could not decode token:', error);
+    return null;
+  }
+}
+
 function GroupOrder() {
   const navigate = useNavigate();
 
@@ -21,6 +46,7 @@ function GroupOrder() {
   const [message, setMessage] = useState('');
 
   const token = localStorage.getItem('token');
+  const userId = getUserIdFromToken(token);
 
   // ---------------------------------------------------------
   // AUTH CHECK
@@ -47,21 +73,32 @@ function GroupOrder() {
       return;
     }
 
+    if (!userId) {
+      setMessage('Your login session is invalid. Please login again.');
+      localStorage.removeItem('token');
+      navigate('/login');
+      return;
+    }
+
     try {
       setLoading(true);
       setMessage('Creating your group...');
 
-      const response = await fetch(`${API}/group-orders/create`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          restaurant,
-          address
-        })
-      });
+      const response = await fetch(
+        `${API}/group-orders/create`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            userId,
+            restaurant: restaurant.trim(),
+            address: address.trim()
+          })
+        }
+      );
 
       const data = await response.json();
 
@@ -71,8 +108,14 @@ function GroupOrder() {
         );
       }
 
-      setGroup(data.order);
-      setGroupCode(data.order.groupCode);
+      const createdOrder = data.order || data.groupOrder || data;
+
+      if (!createdOrder) {
+        throw new Error('Group was created but no order was returned.');
+      }
+
+      setGroup(createdOrder);
+      setGroupCode(createdOrder.groupCode);
       setMode('dashboard');
       setMessage('Group created successfully! 🎉');
 
@@ -99,12 +142,19 @@ function GroupOrder() {
       return;
     }
 
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+
     try {
       setLoading(true);
       setMessage('Joining group...');
 
+      const code = joinCode.trim().toUpperCase();
+
       const response = await fetch(
-        `${API}/group-orders/${joinCode.trim()}/join`,
+        `${API}/group-orders/${code}/join`,
         {
           method: 'POST',
           headers: {
@@ -112,7 +162,7 @@ function GroupOrder() {
             Authorization: `Bearer ${token}`
           },
           body: JSON.stringify({
-            name
+            name: name.trim()
           })
         }
       );
@@ -125,8 +175,13 @@ function GroupOrder() {
         );
       }
 
-      setGroup(data.order);
-      setGroupCode(joinCode.trim().toUpperCase());
+      const joinedOrder =
+        data.order || data.groupOrder || data;
+
+      setGroup(joinedOrder);
+      setGroupCode(
+        joinedOrder.groupCode || code
+      );
       setMode('dashboard');
       setMessage('Joined group successfully! 🎉');
 
@@ -163,7 +218,10 @@ function GroupOrder() {
         );
       }
 
-      setGroup(data);
+      const loadedGroup =
+        data.order || data.groupOrder || data;
+
+      setGroup(loadedGroup);
 
     } catch (error) {
       console.error('Load group error:', error);
@@ -172,12 +230,13 @@ function GroupOrder() {
   };
 
   // ---------------------------------------------------------
-  // CREATE GROUP SCREEN
+  // HOME SCREEN
   // ---------------------------------------------------------
 
   if (mode === 'home') {
     return (
       <main>
+
         <h1>Group Order 👥</h1>
 
         <p>
@@ -195,7 +254,7 @@ function GroupOrder() {
           }}
         >
 
-          {/* CREATE */}
+          {/* CREATE GROUP */}
 
           <div
             style={{
@@ -205,6 +264,7 @@ function GroupOrder() {
               background: '#fff'
             }}
           >
+
             <h2>Start a Group 🎉</h2>
 
             <p>
@@ -220,7 +280,8 @@ function GroupOrder() {
               style={{
                 width: '100%',
                 padding: '12px',
-                marginBottom: '12px'
+                marginBottom: '12px',
+                boxSizing: 'border-box'
               }}
             />
 
@@ -233,7 +294,9 @@ function GroupOrder() {
               style={{
                 width: '100%',
                 padding: '12px',
-                marginBottom: '12px'
+                marginBottom: '12px',
+                boxSizing: 'border-box',
+                minHeight: '100px'
               }}
             />
 
@@ -246,10 +309,11 @@ function GroupOrder() {
                 ? 'Creating...'
                 : 'Create Group 🚀'}
             </button>
+
           </div>
 
 
-          {/* JOIN */}
+          {/* JOIN GROUP */}
 
           <div
             style={{
@@ -259,6 +323,7 @@ function GroupOrder() {
               background: '#fff'
             }}
           >
+
             <h2>Join a Group 🤝</h2>
 
             <p>
@@ -276,7 +341,8 @@ function GroupOrder() {
               style={{
                 width: '100%',
                 padding: '12px',
-                marginBottom: '12px'
+                marginBottom: '12px',
+                boxSizing: 'border-box'
               }}
             />
 
@@ -289,7 +355,8 @@ function GroupOrder() {
               style={{
                 width: '100%',
                 padding: '12px',
-                marginBottom: '12px'
+                marginBottom: '12px',
+                boxSizing: 'border-box'
               }}
             />
 
@@ -302,6 +369,7 @@ function GroupOrder() {
                 ? 'Joining...'
                 : 'Join Group 👥'}
             </button>
+
           </div>
 
         </div>
@@ -311,6 +379,7 @@ function GroupOrder() {
             {message}
           </p>
         )}
+
       </main>
     );
   }
@@ -333,6 +402,7 @@ function GroupOrder() {
           border: '1px solid #eee'
         }}
       >
+
         <h2>Invite your friends</h2>
 
         <p>
@@ -359,6 +429,7 @@ function GroupOrder() {
         >
           Copy Code 📋
         </button>
+
       </div>
 
 
@@ -368,33 +439,49 @@ function GroupOrder() {
 
         <h2>Group Members</h2>
 
-        {group?.groupMembers?.map((member) => (
-          <div
-            key={member.user?._id || member.user}
-            style={{
-              padding: '15px',
-              marginTop: '10px',
-              border: '1px solid #eee',
-              borderRadius: '12px',
-              background: '#fff'
-            }}
-          >
-            <strong>
-              {member.name}
-            </strong>
+        {group?.groupMembers?.length ? (
+          group.groupMembers.map((member, index) => (
 
-            <p>
-              Share: ₹{member.shareAmount || 0}
-            </p>
+            <div
+              key={
+                member.user?._id ||
+                member.user ||
+                index
+              }
+              style={{
+                padding: '15px',
+                marginTop: '10px',
+                border: '1px solid #eee',
+                borderRadius: '12px',
+                background: '#fff'
+              }}
+            >
 
-            <p>
-              Payment:{' '}
-              {member.paymentStatus === 'PAID'
-                ? '✅ Paid'
-                : '⏳ Pending'}
-            </p>
-          </div>
-        ))}
+              <strong>
+                {member.name || 'Member'}
+              </strong>
+
+              <p>
+                Share: ₹{member.shareAmount || 0}
+              </p>
+
+              <p>
+                Payment:{' '}
+                {member.paymentStatus === 'PAID'
+                  ? '✅ Paid'
+                  : member.paymentStatus === 'FAILED'
+                  ? '❌ Failed'
+                  : '⏳ Pending'}
+              </p>
+
+            </div>
+
+          ))
+        ) : (
+          <p>
+            No members found yet.
+          </p>
+        )}
 
       </section>
 
