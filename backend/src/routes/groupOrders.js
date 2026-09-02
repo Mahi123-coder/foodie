@@ -9,7 +9,7 @@ import { auth } from '../middleware/auth.js';
 const router = express.Router();
 
 // =========================================================
-// AUTHENTICATION
+// AUTHENTICATION (Applies to all group order routes)
 // =========================================================
 router.use(auth);
 
@@ -28,14 +28,14 @@ router.post('/create', async (req, res) => {
       });
     }
 
-    // 2. Validate MongoDB ObjectId for restaurant
+    // 2. Validate MongoDB ObjectId for restaurant to prevent CastError crashes
     if (!mongoose.Types.ObjectId.isValid(restaurant)) {
       return res.status(400).json({
         message: 'Invalid restaurant ID. Must be a valid 24-character ObjectId'
       });
     }
 
-    // 3. Generate short unique group code
+    // 3. Generate short unique group code (8 characters uppercase hex)
     const groupCode = crypto.randomBytes(4).toString('hex').toUpperCase();
 
     const order = await Order.create({
@@ -82,6 +82,7 @@ router.get('/:groupCode', async (req, res) => {
       groupCode: req.params.groupCode.toUpperCase(),
       isGroupOrder: true
     })
+      .populate('restaurant') // Populates full restaurant document
       .populate('groupMembers.user', 'name email')
       .populate('groupMembers.items.menuItem');
 
@@ -125,9 +126,9 @@ router.post('/:groupCode/join', async (req, res) => {
       });
     }
 
-    // Prevent same user from joining twice
+    // Prevent duplicate joining by the same authenticated user
     const alreadyJoined = order.groupMembers.some(
-      (member) => member.user.toString() === userId.toString()
+      (member) => member.user && member.user.toString() === userId.toString()
     );
 
     if (alreadyJoined) {
@@ -145,6 +146,7 @@ router.post('/:groupCode/join', async (req, res) => {
     });
 
     await order.save();
+    await order.populate('restaurant');
     await order.populate('groupMembers.user', 'name email');
 
     return res.json({
@@ -192,7 +194,7 @@ router.post('/:groupCode/items', async (req, res) => {
     }
 
     const member = order.groupMembers.find(
-      (m) => m.user.toString() === userId.toString()
+      (m) => m.user && m.user.toString() === userId.toString()
     );
 
     if (!member) {
@@ -215,7 +217,7 @@ router.post('/:groupCode/items', async (req, res) => {
     }
 
     const existingItem = member.items.find(
-      (item) => item.menuItem.toString() === menuItemId.toString()
+      (item) => item.menuItem && item.menuItem.toString() === menuItemId.toString()
     );
 
     if (existingItem) {
@@ -229,12 +231,13 @@ router.post('/:groupCode/items', async (req, res) => {
       });
     }
 
-    // Recalculate member share and total
+    // Recalculate this member's personal share
     member.shareAmount = member.items.reduce(
       (sum, item) => sum + Number(item.price) * Number(item.quantity),
       0
     );
 
+    // Recalculate grand total
     order.total = order.groupMembers.reduce(
       (total, m) => total + Number(m.shareAmount || 0),
       0
@@ -284,7 +287,7 @@ router.get('/:groupCode/share/:userId', async (req, res) => {
     }
 
     const member = order.groupMembers.find(
-      (m) => m.user.toString() === loggedInUserId.toString()
+      (m) => m.user && m.user.toString() === loggedInUserId.toString()
     );
 
     if (!member) {
@@ -304,6 +307,63 @@ router.get('/:groupCode/share/:userId', async (req, res) => {
     return res.status(500).json({
       message: 'Failed to get member share'
     });
+  }
+});
+
+// =========================================================
+// PAY MEMBER SHARE
+// =========================================================
+router.post('/:groupCode/pay', async (req, res) => {
+  try {
+    const userId = req.user.id || req.user._id;
+
+    const order = await Order.findOne({
+      groupCode: req.params.groupCode.toUpperCase(),
+      isGroupOrder: true
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: 'Group order not found' });
+    }
+
+    // Find the logged-in member
+    const member = order.groupMembers.find(
+      (m) => m.user && m.user.toString() === userId.toString()
+    );
+
+    if (!member) {
+      return res.status(404).json({ message: 'Member not found in this group' });
+    }
+
+    if (member.shareAmount <= 0) {
+      return res.status(400).json({ message: 'Please add items before paying' });
+    }
+
+    // Mark this member as paid
+    member.paymentStatus = 'PAID';
+
+    // Check if every member with items has completed payment
+    const allPaid = order.groupMembers
+      .filter((m) => m.shareAmount > 0)
+      .every((m) => m.paymentStatus === 'PAID');
+
+    order.allMembersPaid = allPaid;
+    if (allPaid) {
+      order.paymentStatus = 'PAID';
+      order.status = 'CONFIRMED';
+    }
+
+    await order.save();
+
+    return res.json({
+      message: 'Payment completed successfully',
+      member,
+      allMembersPaid: order.allMembersPaid,
+      order
+    });
+  } catch (error) {
+    console.error('Group pay error:', error);
+    return res.status(500).json({ message: 'Payment processing failed' });
   }
 });
 
