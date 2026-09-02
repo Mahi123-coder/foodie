@@ -32,6 +32,7 @@ import GroupOrder from './GroupOrder.jsx';
 // =========================================================
 
 const API = 'https://foodie-1-3b27.onrender.com/api';
+
 // =========================================================
 // DEFAULT IMAGE
 // =========================================================
@@ -39,14 +40,12 @@ const API = 'https://foodie-1-3b27.onrender.com/api';
 const img = (seed) =>
   `https://images.unsplash.com/photo-${seed}?auto=format&fit=crop&w=800&q=80`;
 
-
 // =========================================================
 // DEFAULT FOOD IMAGE
 // =========================================================
 
 const DEFAULT_FOOD_IMAGE =
   'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=800&q=80';
-
 
 // =========================================================
 // IMAGE HELPER
@@ -56,10 +55,8 @@ const getImage = (image, fallback = DEFAULT_FOOD_IMAGE) => {
   if (image && typeof image === 'string' && image.trim()) {
     return image;
   }
-
   return fallback;
 };
-
 
 // =========================================================
 // LEAFLET MARKER FIX
@@ -70,18 +67,14 @@ delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-
   iconUrl:
     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-
   shadowUrl:
     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png'
 });
 
-
 // =========================================================
-// DISTANCE CALCULATION
-// HAVERSINE FORMULA
+// DISTANCE CALCULATION (HAVERSINE FORMULA)
 // =========================================================
 
 function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -91,23 +84,16 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
 
   const a =
-    Math.sin(dLat / 2) *
-      Math.sin(dLat / 2) +
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos((lat1 * Math.PI) / 180) *
       Math.cos((lat2 * Math.PI) / 180) *
       Math.sin(dLon / 2) *
       Math.sin(dLon / 2);
 
-  const c =
-    2 *
-    Math.atan2(
-      Math.sqrt(a),
-      Math.sqrt(1 - a)
-    );
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
   return R * c;
 }
-
 
 // =========================================================
 // HELPER: LOAD RAZORPAY SCRIPT
@@ -127,7 +113,6 @@ const loadRazorpayScript = () => {
   });
 };
 
-
 // =========================================================
 // APP
 // =========================================================
@@ -135,39 +120,25 @@ const loadRazorpayScript = () => {
 function App() {
   const [cart, setCart] = useState(() => {
     try {
-      return JSON.parse(
-        localStorage.getItem('cart') || '[]'
-      );
+      return JSON.parse(localStorage.getItem('cart') || '[]');
     } catch {
       return [];
     }
   });
 
   useEffect(() => {
-    localStorage.setItem(
-      'cart',
-      JSON.stringify(cart)
-    );
+    localStorage.setItem('cart', JSON.stringify(cart));
   }, [cart]);
 
-
-  // =======================================================
   // ADD TO CART
-  // =======================================================
-
   const add = (item, restaurant) => {
     setCart((current) => {
-      const existing = current.find(
-        (i) => i.menuItem === item._id
-      );
+      const existing = current.find((i) => i.menuItem === item._id);
 
       if (existing) {
         return current.map((i) =>
           i.menuItem === item._id
-            ? {
-                ...i,
-                quantity: i.quantity + 1
-              }
+            ? { ...i, quantity: i.quantity + 1 }
             : i
         );
       }
@@ -186,11 +157,7 @@ function App() {
     });
   };
 
-
-  // =======================================================
   // REMOVE FROM CART
-  // =======================================================
-
   const remove = (id) => {
     setCart((current) =>
       current.flatMap((i) => {
@@ -199,12 +166,7 @@ function App() {
         }
 
         if (i.quantity > 1) {
-          return [
-            {
-              ...i,
-              quantity: i.quantity - 1
-            }
-          ];
+          return [{ ...i, quantity: i.quantity - 1 }];
         }
 
         return [];
@@ -212,76 +174,28 @@ function App() {
     );
   };
 
-
   return (
     <>
       <Header
-        count={cart.reduce(
-          (sum, item) =>
-            sum + item.quantity,
-          0
-        )}
+        count={cart.reduce((sum, item) => sum + item.quantity, 0)}
       />
 
       <Routes>
-
-        <Route
-          path="/"
-          element={<Home />}
-        />
-
-        <Route
-          path="/restaurant/:id"
-          element={
-            <Restaurant add={add} />
-          }
-        />
-
+        <Route path="/" element={<Home />} />
+        <Route path="/restaurant/:id" element={<Restaurant add={add} />} />
         <Route
           path="/cart"
-          element={
-            <Cart
-              cart={cart}
-              remove={remove}
-              setCart={setCart}
-            />
-          }
+          element={<Cart cart={cart} remove={remove} setCart={setCart} />}
         />
-
-        <Route
-          path="/login"
-          element={
-            <Auth mode="login" />
-          }
-        />
-
-        <Route
-          path="/register"
-          element={
-            <Auth mode="register" />
-          }
-        />
-
-        <Route
-  path="/orders"
-  element={<Orders />}
-/>
-
-<Route
-  path="/group-order"
-  element={<GroupOrder />}
-/>
-
-<Route
-  path="/admin"
-  element={<Admin />}
-/>
-
+        <Route path="/login" element={<Auth mode="login" />} />
+        <Route path="/register" element={<Auth mode="register" />} />
+        <Route path="/orders" element={<Orders />} />
+        <Route path="/group-order" element={<GroupOrder />} />
+        <Route path="/admin" element={<Admin />} />
       </Routes>
     </>
   );
 }
-
 
 // =========================================================
 // HEADER
@@ -290,68 +204,36 @@ function App() {
 function Header({ count }) {
   return (
     <header>
-      <Link
-        to="/"
-        className="logo"
-      >
+      <Link to="/" className="logo">
         Foodie 🍔
       </Link>
 
       <nav>
-
-        <Link to="/">
-          Home
-        </Link>
-
-        <Link to="/orders">
-          Orders
-        </Link>
-
-        <Link to="/login">
-          Login
-        </Link>
-        <Link to="/group-order">
-        Group Order 👥
-        </Link>
-        <Link to="/register">
-          Sign Up
-        </Link>
-
-        <Link
-          className="cart"
-          to="/cart"
-        >
+        <Link to="/">Home</Link>
+        <Link to="/orders">Orders</Link>
+        <Link to="/login">Login</Link>
+        <Link to="/group-order">Group Order 👥</Link>
+        <Link to="/register">Sign Up</Link>
+        <Link className="cart" to="/cart">
           Cart ({count})
         </Link>
-
       </nav>
     </header>
   );
 }
 
-
 // =========================================================
 // LOCATION CONTROL FOR MAP
 // =========================================================
 
-function LocateMeControl({
-  onLocationFound,
-  selectedLocation
-}) {
+function LocateMeControl({ onLocationFound, selectedLocation }) {
   const map = useMap();
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [error, setError] =
-    useState('');
-
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const locateUser = () => {
     if (!navigator.geolocation) {
-      setError(
-        'Geolocation is not supported by your browser.'
-      );
+      setError('Geolocation is not supported by your browser.');
       return;
     }
 
@@ -360,53 +242,31 @@ function LocateMeControl({
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const lat =
-          position.coords.latitude;
-
-        const lng =
-          position.coords.longitude;
-
-        const location = {
-          lat,
-          lng
-        };
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const location = { lat, lng };
 
         onLocationFound(location);
 
-        map.flyTo(
-          [lat, lng],
-          14,
-          {
-            animate: true,
-            duration: 1.5
-          }
-        );
+        map.flyTo([lat, lng], 14, {
+          animate: true,
+          duration: 1.5
+        });
 
         setLoading(false);
       },
-
       (error) => {
         setLoading(false);
-
         if (error.code === 1) {
-          setError(
-            'Location permission was denied. Please allow location access.'
-          );
+          setError('Location permission was denied. Please allow location access.');
         } else if (error.code === 2) {
-          setError(
-            'Your location could not be determined.'
-          );
+          setError('Your location could not be determined.');
         } else if (error.code === 3) {
-          setError(
-            'Location request timed out. Please try again.'
-          );
+          setError('Location request timed out. Please try again.');
         } else {
-          setError(
-            'Unable to get your location.'
-          );
+          setError('Unable to get your location.');
         }
       },
-
       {
         enableHighAccuracy: true,
         timeout: 10000,
@@ -415,50 +275,21 @@ function LocateMeControl({
     );
   };
 
-
   return (
     <>
       <div className="locateMeControl">
-
-        <button
-          type="button"
-          onClick={locateUser}
-          disabled={loading}
-        >
-          📍{' '}
-          {loading
-            ? 'Locating...'
-            : 'Use My Location'}
+        <button type="button" onClick={locateUser} disabled={loading}>
+          📍 {loading ? 'Locating...' : 'Use My Location'}
         </button>
-
-        {error && (
-          <div className="locationError">
-            {error}
-          </div>
-        )}
-
+        {error && <div className="locationError">{error}</div>}
       </div>
 
-
       {selectedLocation && (
-        <Marker
-          position={[
-            selectedLocation.lat,
-            selectedLocation.lng
-          ]}
-        >
+        <Marker position={[selectedLocation.lat, selectedLocation.lng]}>
           <Popup>
             <div className="userLocationPopup">
-
-              <strong>
-                📍 You are here
-              </strong>
-
-              <p>
-                Restaurants around
-                your location
-              </p>
-
+              <strong>📍 You are here</strong>
+              <p>Restaurants around your location</p>
             </div>
           </Popup>
         </Marker>
@@ -467,21 +298,17 @@ function LocateMeControl({
   );
 }
 
-
 // =========================================================
 // MAP CLICK LOCATION PICKER
 // =========================================================
 
-function MapLocationPicker({
-  onLocationFound
-}) {
+function MapLocationPicker({ onLocationFound }) {
   useMapEvents({
     click(e) {
       const location = {
         lat: e.latlng.lat,
         lng: e.latlng.lng
       };
-
       onLocationFound(location);
     }
   });
@@ -489,421 +316,181 @@ function MapLocationPicker({
   return null;
 }
 
-
 // =========================================================
 // RESTAURANT MAP
 // =========================================================
 
-function RestaurantMap({
-  restaurants,
-  selectedLocation,
-  setSelectedLocation
-}) {
-  const validRestaurants =
-    restaurants.filter(
-      (restaurant) => {
-        const lat =
-          Number(
-            restaurant.latitude
-          );
-
-        const lng =
-          Number(
-            restaurant.longitude
-          );
-
-        return (
-          Number.isFinite(lat) &&
-          Number.isFinite(lng)
-        );
-      }
-    );
-
+function RestaurantMap({ restaurants, selectedLocation, setSelectedLocation }) {
+  const validRestaurants = restaurants.filter((restaurant) => {
+    const lat = Number(restaurant.latitude);
+    const lng = Number(restaurant.longitude);
+    return Number.isFinite(lat) && Number.isFinite(lng);
+  });
 
   return (
     <section className="mapSection">
-
       <div className="mapHeader">
-
         <div>
-
-          <p className="eyebrow">
-            FIND YOUR FOOD
-          </p>
-
-          <h2>
-            Restaurants near you 📍
-          </h2>
-
+          <p className="eyebrow">FIND YOUR FOOD</p>
+          <h2>Restaurants near you 📍</h2>
           <p>
-            Use your location or click
-            anywhere on the map to find
-            nearby restaurants.
+            Use your location or click anywhere on the map to find nearby
+            restaurants.
           </p>
-
         </div>
-
-        <div className="mapBadge">
-          📍 {validRestaurants.length}{' '}
-          locations
-        </div>
-
+        <div className="mapBadge">📍 {validRestaurants.length} locations</div>
       </div>
 
-
       {validRestaurants.length === 0 ? (
-
         <div className="emptyState">
-
-          <div>
-            📍
-          </div>
-
-          <h3>
-            Restaurant locations unavailable
-          </h3>
-
+          <div>📍</div>
+          <h3>Restaurant locations unavailable</h3>
           <p>
-            Make sure your restaurants have
-            latitude and longitude values.
+            Make sure your restaurants have latitude and longitude values.
           </p>
-
         </div>
-
       ) : (
-
         <div className="mapWrapper">
-
           <MapContainer
-            center={[
-              12.9716,
-              77.5946
-            ]}
+            center={[12.9716, 77.5946]}
             zoom={12}
             scrollWheelZoom={true}
             className="restaurantMap"
           >
-
             <TileLayer
               attribution="&copy; OpenStreetMap contributors"
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
 
-
             <LocateMeControl
-              onLocationFound={
-                setSelectedLocation
-              }
-              selectedLocation={
-                selectedLocation
-              }
+              onLocationFound={setSelectedLocation}
+              selectedLocation={selectedLocation}
             />
 
+            <MapLocationPicker onLocationFound={setSelectedLocation} />
 
-            <MapLocationPicker
-              onLocationFound={
-                setSelectedLocation
-              }
-            />
+            {validRestaurants.map((restaurant) => {
+              const restaurantLat = Number(restaurant.latitude);
+              const restaurantLng = Number(restaurant.longitude);
 
-
-            {validRestaurants.map(
-              (restaurant) => {
-
-                const restaurantLat =
-                  Number(
-                    restaurant.latitude
-                  );
-
-                const restaurantLng =
-                  Number(
-                    restaurant.longitude
-                  );
-
-
-                let distance = null;
-
-
-                if (selectedLocation) {
-                  distance =
-                    calculateDistance(
-                      selectedLocation.lat,
-                      selectedLocation.lng,
-                      restaurantLat,
-                      restaurantLng
-                    );
-                }
-
-
-                return (
-                  <Marker
-                    key={restaurant._id}
-                    position={[
-                      restaurantLat,
-                      restaurantLng
-                    ]}
-                  >
-
-                    <Popup>
-
-                      <div className="mapPopup">
-
-                        <img
-                          src={getImage(
-                            restaurant.image,
-                            img(
-                              '1552566626-52f8b828add9'
-                            )
-                          )}
-                          alt={restaurant.name}
-                        />
-
-                        <h3>
-                          {restaurant.name}
-                        </h3>
-
-                        <p>
-                          ⭐{' '}
-                          {restaurant.rating}
-                        </p>
-
-                        <p>
-                          {restaurant.cuisine?.join(
-                            ', '
-                          )}
-                        </p>
-
-                        {distance !== null && (
-                          <p>
-                            📍{' '}
-                            {distance.toFixed(
-                              1
-                            )}{' '}
-                            km away
-                          </p>
-                        )}
-
-                        <p>
-                          ⏱️{' '}
-                          {
-                            restaurant.deliveryTime
-                          }{' '}
-                          min
-                        </p>
-
-                        <Link
-                          to={`/restaurant/${restaurant._id}`}
-                          className="mapButton"
-                        >
-                          View Restaurant
-                        </Link>
-
-                      </div>
-
-                    </Popup>
-
-                  </Marker>
+              let distance = null;
+              if (selectedLocation) {
+                distance = calculateDistance(
+                  selectedLocation.lat,
+                  selectedLocation.lng,
+                  restaurantLat,
+                  restaurantLng
                 );
               }
-            )}
 
+              return (
+                <Marker
+                  key={restaurant._id}
+                  position={[restaurantLat, restaurantLng]}
+                >
+                  <Popup>
+                    <div className="mapPopup">
+                      <img
+                        src={getImage(
+                          restaurant.image,
+                          img('1552566626-52f8b828add9')
+                        )}
+                        alt={restaurant.name}
+                      />
+                      <h3>{restaurant.name}</h3>
+                      <p>⭐ {restaurant.rating}</p>
+                      <p>{restaurant.cuisine?.join(', ')}</p>
+                      {distance !== null && (
+                        <p>📍 {distance.toFixed(1)} km away</p>
+                      )}
+                      <p>⏱️ {restaurant.deliveryTime} min</p>
+                      <Link
+                        to={`/restaurant/${restaurant._id}`}
+                        className="mapButton"
+                      >
+                        View Restaurant
+                      </Link>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
           </MapContainer>
-
         </div>
       )}
-
     </section>
   );
 }
-
 
 // =========================================================
 // HOME
 // =========================================================
 
 function Home() {
+  const [data, setData] = useState([]);
+  const [q, setQ] = useState('');
+  const [aiQuery, setAiQuery] = useState('');
+  const [aiResults, setAiResults] = useState([]);
+  const [aiMessage, setAiMessage] = useState('');
 
-  const [data, setData] =
-    useState([]);
-
-  const [q, setQ] =
-    useState('');
-
-  const [aiQuery, setAiQuery] =
-    useState('');
-
-  const [aiResults, setAiResults] =
-    useState([]);
-
-  const [aiMessage, setAiMessage] =
-    useState('');
-
-
-  // LOCATION
-
-  const [
-    selectedLocation,
-    setSelectedLocation
-  ] = useState(null);
-
-  const [radius, setRadius] =
-    useState(10);
-
-  const [
-    locationMessage,
-    setLocationMessage
-  ] = useState(
+  const [selectedLocation, setSelectedLocation] = useState(null);
+  const [radius, setRadius] = useState(10);
+  const [locationMessage, setLocationMessage] = useState(
     'Use your location to discover nearby restaurants 📍'
   );
 
-
-  // =======================================================
-  // LOAD RESTAURANTS
-  // =======================================================
-
-  const load = async (
-    searchTerm = q
-  ) => {
-
+  const load = async (searchTerm = q) => {
     try {
-
-      const response =
-        await fetch(
-          `${API}/restaurants?search=${encodeURIComponent(
-            searchTerm
-          )}`
-        );
-
-
-      if (!response.ok) {
-        throw new Error(
-          'Failed to load restaurants'
-        );
-      }
-
-
-      const result =
-        await response.json();
-
-
-      setData(
-        Array.isArray(result)
-          ? result
-          : []
+      const response = await fetch(
+        `${API}/restaurants?search=${encodeURIComponent(searchTerm)}`
       );
-
+      if (!response.ok) throw new Error('Failed to load restaurants');
+      const result = await response.json();
+      setData(Array.isArray(result) ? result : []);
     } catch (error) {
-
-      console.error(
-        'Failed to load restaurants:',
-        error
-      );
-
+      console.error('Failed to load restaurants:', error);
       setData([]);
-
     }
   };
-
 
   useEffect(() => {
     load('');
   }, []);
 
-
-  // =======================================================
-  // CATEGORY
-  // =======================================================
-
-  const chooseCategory =
-    async (category) => {
-
-      setQ(category);
-
-      await load(category);
-    };
-
-
-  // =======================================================
-  // USE MY LOCATION
-  // =======================================================
+  const chooseCategory = async (category) => {
+    setQ(category);
+    await load(category);
+  };
 
   const useMyLocation = () => {
-
     if (!navigator.geolocation) {
-
-      setLocationMessage(
-        'Geolocation is not supported by your browser.'
-      );
-
+      setLocationMessage('Geolocation is not supported by your browser.');
       return;
     }
 
-
-    setLocationMessage(
-      'Finding your location... 📍'
-    );
-
+    setLocationMessage('Finding your location... 📍');
 
     navigator.geolocation.getCurrentPosition(
-
       (position) => {
-
         const location = {
-          lat:
-            position.coords.latitude,
-
-          lng:
-            position.coords.longitude
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
         };
-
-
-        setSelectedLocation(
-          location
-        );
-
-
-        setLocationMessage(
-          'Showing restaurants near your location 📍'
-        );
-
+        setSelectedLocation(location);
+        setLocationMessage('Showing restaurants near your location 📍');
       },
-
-
       (error) => {
-
-        console.error(
-          'Geolocation error:',
-          error
-        );
-
-
+        console.error('Geolocation error:', error);
         if (error.code === 1) {
-
-          setLocationMessage(
-            'Location permission denied. Please allow it in your browser.'
-          );
-
+          setLocationMessage('Location permission denied. Please allow it in your browser.');
         } else if (error.code === 2) {
-
-          setLocationMessage(
-            'Could not determine your location.'
-          );
-
+          setLocationMessage('Could not determine your location.');
         } else if (error.code === 3) {
-
-          setLocationMessage(
-            'Location request timed out. Try again.'
-          );
-
+          setLocationMessage('Location request timed out. Try again.');
         } else {
-
-          setLocationMessage(
-            'Unable to get your location.'
-          );
+          setLocationMessage('Unable to get your location.');
         }
       },
-
-
       {
         enableHighAccuracy: true,
         timeout: 10000,
@@ -912,375 +499,148 @@ function Home() {
     );
   };
 
-
-  // =======================================================
-  // CLEAR LOCATION
-  // =======================================================
-
   const clearLocation = () => {
-
     setSelectedLocation(null);
-
-    setLocationMessage(
-      'Showing all restaurants 🌎'
-    );
+    setLocationMessage('Showing all restaurants 🌎');
   };
 
+  const nearbyRestaurants = data
+    .map((restaurant) => {
+      const lat = Number(restaurant.latitude);
+      const lng = Number(restaurant.longitude);
 
-  // =======================================================
-  // LOCATION BASED RESTAURANTS
-  // =======================================================
+      if (
+        !selectedLocation ||
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng)
+      ) {
+        return { ...restaurant, distance: null };
+      }
 
-  const nearbyRestaurants =
-    data
-
-      .map((restaurant) => {
-
-        const lat =
-          Number(
-            restaurant.latitude
-          );
-
-        const lng =
-          Number(
-            restaurant.longitude
-          );
-
-
-        if (
-          !selectedLocation ||
-          !Number.isFinite(lat) ||
-          !Number.isFinite(lng)
-        ) {
-
-          return {
-            ...restaurant,
-            distance: null
-          };
-        }
-
-
-        const distance =
-          calculateDistance(
-            selectedLocation.lat,
-            selectedLocation.lng,
-            lat,
-            lng
-          );
-
-
-        return {
-          ...restaurant,
-          distance
-        };
-      })
-
-
-      .filter((restaurant) => {
-
-        if (
-          !selectedLocation ||
-          restaurant.distance === null
-        ) {
-          return true;
-        }
-
-
-        return (
-          restaurant.distance <=
-          radius
-        );
-      })
-
-
-      .sort((a, b) => {
-
-        if (
-          a.distance === null &&
-          b.distance === null
-        ) {
-          return 0;
-        }
-
-
-        if (
-          a.distance === null
-        ) {
-          return 1;
-        }
-
-
-        if (
-          b.distance === null
-        ) {
-          return -1;
-        }
-
-
-        return (
-          a.distance -
-          b.distance
-        );
-      });
-
-
-  // =======================================================
-  // AI FOOD ASSISTANT
-  // =======================================================
-
-  const askAI = async () => {
-
-    const query =
-      aiQuery.trim();
-
-
-    if (!query) {
-
-      setAiMessage(
-        'Tell me what you are craving 😋'
+      const distance = calculateDistance(
+        selectedLocation.lat,
+        selectedLocation.lng,
+        lat,
+        lng
       );
 
-      setAiResults([]);
+      return { ...restaurant, distance };
+    })
+    .filter((restaurant) => {
+      if (!selectedLocation || restaurant.distance === null) return true;
+      return restaurant.distance <= radius;
+    })
+    .sort((a, b) => {
+      if (a.distance === null && b.distance === null) return 0;
+      if (a.distance === null) return 1;
+      if (b.distance === null) return -1;
+      return a.distance - b.distance;
+    });
 
+  const askAI = async () => {
+    const query = aiQuery.trim();
+    if (!query) {
+      setAiMessage('Tell me what you are craving 😋');
+      setAiResults([]);
       return;
     }
 
-
     try {
-
-      setAiMessage(
-        'Foodie AI is thinking... 🤖✨'
-      );
-
+      setAiMessage('Foodie AI is thinking... 🤖✨');
       setAiResults([]);
 
+      const response = await fetch(`${API}/ai/recommend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query })
+      });
 
-      const response =
-        await fetch(
-          `${API}/ai/recommend`,
-          {
-            method: 'POST',
-
-            headers: {
-              'Content-Type':
-                'application/json'
-            },
-
-            body: JSON.stringify({
-              query
-            })
-          }
-        );
-
-
-      const result =
-        await response.json();
-
-
+      const result = await response.json();
       if (!response.ok) {
-
-        throw new Error(
-          result.message ||
-          'AI recommendation failed'
-        );
+        throw new Error(result.message || 'AI recommendation failed');
       }
 
-
       setAiMessage(
-        result.message ||
-        'Here are some recommendations for you! 🍽️'
+        result.message || 'Here are some recommendations for you! 🍽️'
       );
 
+      const recommendations = result.recommendations || [];
+      const restaurantResponse = await fetch(`${API}/restaurants`);
+      const restaurants = await restaurantResponse.json();
 
-      const recommendations =
-        result.recommendations || [];
+      const formattedResults = recommendations
+        .map((recommendation) => {
+          const restaurant = restaurants.find(
+            (r) => String(r._id) === String(recommendation.restaurantId)
+          );
+          if (!restaurant) return null;
 
+          return {
+            ...restaurant,
+            aiMenuItem: recommendation.menuItemName,
+            aiMenuItemId: recommendation.menuItemId,
+            aiPrice: recommendation.price,
+            aiReason: recommendation.reason
+          };
+        })
+        .filter(Boolean);
 
-      const restaurantResponse =
-        await fetch(
-          `${API}/restaurants`
-        );
+      const resultsWithDishImages = await Promise.all(
+        formattedResults.map(async (restaurant) => {
+          try {
+            const detailResponse = await fetch(
+              `${API}/restaurants/${restaurant._id}`
+            );
+            if (!detailResponse.ok) return restaurant;
 
+            const detail = await detailResponse.json();
+            const menuItem = detail.menu?.find(
+              (item) =>
+                String(item._id) === String(restaurant.aiMenuItemId)
+            );
 
-      const restaurants =
-        await restaurantResponse.json();
-
-
-      const formattedResults =
-        recommendations
-
-          .map(
-            (recommendation) => {
-
-              const restaurant =
-                restaurants.find(
-                  (r) =>
-                    String(r._id) ===
-                    String(
-                      recommendation.restaurantId
-                    )
-                );
-
-
-              if (!restaurant) {
-                return null;
-              }
-
-
-              return {
-                ...restaurant,
-
-                aiMenuItem:
-                  recommendation.menuItemName,
-
-                aiMenuItemId:
-                  recommendation.menuItemId,
-
-                aiPrice:
-                  recommendation.price,
-
-                aiReason:
-                  recommendation.reason
-              };
-            }
-          )
-
-          .filter(Boolean);
-
-
-      const resultsWithDishImages =
-        await Promise.all(
-          formattedResults.map(
-            async (restaurant) => {
-
-              try {
-
-                const detailResponse =
-                  await fetch(
-                    `${API}/restaurants/${restaurant._id}`
-                  );
-
-
-                if (!detailResponse.ok) {
-                  return restaurant;
-                }
-
-
-                const detail =
-                  await detailResponse.json();
-
-
-                const menuItem =
-                  detail.menu?.find(
-                    (item) =>
-                      String(item._id) ===
-                      String(
-                        restaurant.aiMenuItemId
-                      )
-                  );
-
-
-                return {
-                  ...restaurant,
-
-                  aiMenuItemImage:
-                    menuItem?.image ||
-                    null
-                };
-
-              } catch (error) {
-
-                console.error(
-                  'Could not load AI dish image:',
-                  error
-                );
-
-                return restaurant;
-              }
-            }
-          )
-        );
-
-
-      setAiResults(
-        resultsWithDishImages
+            return {
+              ...restaurant,
+              aiMenuItemImage: menuItem?.image || null
+            };
+          } catch (error) {
+            console.error('Could not load AI dish image:', error);
+            return restaurant;
+          }
+        })
       );
 
+      setAiResults(resultsWithDishImages);
     } catch (error) {
-
-      console.error(
-        'AI error:',
-        error
-      );
-
-
+      console.error('AI error:', error);
       setAiResults([]);
-
-
       setAiMessage(
-        error.message ||
-        'Sorry, I could not get recommendations right now. 😭'
+        error.message || 'Sorry, I could not get recommendations right now. 😭'
       );
     }
   };
 
-
   return (
     <main>
-
-      {/* =================================================
-          HERO
-      ================================================= */}
-
       <section className="hero">
-
         <div>
-
-          <p className="eyebrow">
-            Food delivery, your way
-          </p>
-
-          <h1>
-            Discover food you’ll love.
-          </h1>
-
-          <p>
-            Browse restaurants, explore
-            menus and order your favourites.
-          </p>
-
+          <p className="eyebrow">Food delivery, your way</p>
+          <h1>Discover food you’ll love.</h1>
+          <p>Browse restaurants, explore menus and order your favourites.</p>
 
           <div className="search">
-
             <input
               value={q}
-              onChange={(e) =>
-                setQ(e.target.value)
-              }
+              onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  load();
-                }
+                if (e.key === 'Enter') load();
               }}
               placeholder="Search restaurants or cuisines"
             />
-
-            <button
-              onClick={() => load()}
-            >
-              Search
-            </button>
-
+            <button onClick={() => load()}>Search</button>
           </div>
-
         </div>
-
       </section>
-
-
-      {/* =================================================
-          LOCATION DISCOVERY
-      ================================================= */}
 
       <section
         style={{
@@ -1290,28 +650,22 @@ function Home() {
           background: '#fff',
           borderRadius: '20px',
           border: '1px solid #eee',
-          boxShadow:
-            '0 10px 30px rgba(0,0,0,0.05)'
+          boxShadow: '0 10px 30px rgba(0,0,0,0.05)'
         }}
       >
-
         <div
           style={{
             display: 'flex',
-            justifyContent:
-              'space-between',
+            justifyContent: 'space-between',
             alignItems: 'center',
             gap: '20px',
             flexWrap: 'wrap'
           }}
         >
-
           <div>
-
             <span
               style={{
-                display:
-                  'inline-block',
+                display: 'inline-block',
                 fontSize: '13px',
                 fontWeight: '700',
                 color: '#ff5a1f',
@@ -1321,29 +675,11 @@ function Home() {
             >
               📍 LOCATION DISCOVERY
             </span>
-
-
-            <h2
-              style={{
-                margin: '5px 0',
-                fontSize: '28px'
-              }}
-            >
+            <h2 style={{ margin: '5px 0', fontSize: '28px' }}>
               Find restaurants near you
             </h2>
-
-
-            <p
-              style={{
-                margin: '8px 0',
-                color: '#666'
-              }}
-            >
-              {locationMessage}
-            </p>
-
+            <p style={{ margin: '8px 0', color: '#666' }}>{locationMessage}</p>
           </div>
-
 
           <div
             style={{
@@ -1353,50 +689,29 @@ function Home() {
               flexWrap: 'wrap'
             }}
           >
-
-            <button
-              className="primary"
-              onClick={
-                useMyLocation
-              }
-              type="button"
-            >
+            <button className="primary" onClick={useMyLocation} type="button">
               📍 Use My Location
             </button>
-
-
             {selectedLocation && (
               <button
                 type="button"
-                onClick={
-                  clearLocation
-                }
+                onClick={clearLocation}
                 style={{
-                  padding:
-                    '12px 18px',
-                  borderRadius:
-                    '10px',
-                  border:
-                    '1px solid #ddd',
-                  background:
-                    '#fff',
-                  cursor:
-                    'pointer',
-                  fontWeight:
-                    '600'
+                  padding: '12px 18px',
+                  borderRadius: '10px',
+                  border: '1px solid #ddd',
+                  background: '#fff',
+                  cursor: 'pointer',
+                  fontWeight: '600'
                 }}
               >
                 Show All
               </button>
             )}
-
           </div>
-
         </div>
 
-
         {selectedLocation && (
-
           <div
             style={{
               marginTop: '20px',
@@ -1405,419 +720,163 @@ function Home() {
               borderRadius: '14px',
               display: 'flex',
               alignItems: 'center',
-              justifyContent:
-                'space-between',
+              justifyContent: 'space-between',
               gap: '20px',
               flexWrap: 'wrap'
             }}
           >
-
             <div>
-
-              <strong>
-                📍 Nearby restaurants
-              </strong>
-
-              <p
-                style={{
-                  margin:
-                    '5px 0 0',
-                  color: '#666'
-                }}
-              >
-                Showing restaurants
-                within{' '}
-                <strong>
-                  {radius} km
-                </strong>{' '}
-                of your location.
+              <strong>📍 Nearby restaurants</strong>
+              <p style={{ margin: '5px 0 0', color: '#666' }}>
+                Showing restaurants within <strong>{radius} km</strong> of your
+                location.
               </p>
-
             </div>
 
-
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px'
-              }}
-            >
-
-              <label
-                htmlFor="radius"
-                style={{
-                  fontWeight:
-                    '600'
-                }}
-              >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <label htmlFor="radius" style={{ fontWeight: '600' }}>
                 Radius:
               </label>
-
-
               <select
                 id="radius"
                 value={radius}
-                onChange={(e) =>
-                  setRadius(
-                    Number(
-                      e.target.value
-                    )
-                  )
-                }
+                onChange={(e) => setRadius(Number(e.target.value))}
                 style={{
-                  padding:
-                    '10px 14px',
-                  borderRadius:
-                    '10px',
-                  border:
-                    '1px solid #ddd',
-                  background:
-                    '#fff',
-                  fontSize:
-                    '15px'
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  border: '1px solid #ddd',
+                  background: '#fff',
+                  fontSize: '15px'
                 }}
               >
-
-                <option value={5}>
-                  5 km
-                </option>
-
-                <option value={10}>
-                  10 km
-                </option>
-
-                <option value={25}>
-                  25 km
-                </option>
-
-                <option value={50}>
-                  50 km
-                </option>
-
+                <option value={5}>5 km</option>
+                <option value={10}>10 km</option>
+                <option value={25}>25 km</option>
+                <option value={50}>50 km</option>
               </select>
-
             </div>
-
           </div>
         )}
-
       </section>
 
-
-      {/* =================================================
-          AI FOOD ASSISTANT
-      ================================================= */}
-
       <section className="aiBox">
-
         <div className="aiHeader">
-
           <div>
-
-            <span className="aiBadge">
-              ✨ AI FOOD ASSISTANT
-            </span>
-
-            <h2>
-              What should I eat?
-            </h2>
-
-            <p>
-              Tell me what you're craving
-              and I'll find something for you.
-            </p>
-
+            <span className="aiBadge">✨ AI FOOD ASSISTANT</span>
+            <h2>What should I eat?</h2>
+            <p>Tell me what you're craving and I'll find something for you.</p>
           </div>
-
-
-          <div className="aiIcon">
-            🤖
-          </div>
-
+          <div className="aiIcon">🤖</div>
         </div>
 
-
         <div className="aiSearch">
-
           <input
             value={aiQuery}
-            onChange={(e) =>
-              setAiQuery(
-                e.target.value
-              )
-            }
+            onChange={(e) => setAiQuery(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                askAI();
-              }
+              if (e.key === 'Enter') askAI();
             }}
             placeholder="Try: spicy food under ₹300"
           />
-
-          <button
-            onClick={askAI}
-          >
-            Ask AI ✨
-          </button>
-
+          <button onClick={askAI}>Ask AI ✨</button>
         </div>
 
-
-        {aiMessage && (
-          <p className="aiMessage">
-            {aiMessage}
-          </p>
-        )}
-
+        {aiMessage && <p className="aiMessage">{aiMessage}</p>}
 
         {aiResults.length > 0 && (
-
           <div className="aiResults">
-
             {aiResults.map((r) => (
-
               <Link
                 key={r._id}
                 to={`/restaurant/${r._id}`}
                 className="aiCard"
               >
-
                 <img
                   src={
                     r.aiMenuItemImage ||
                     r.image ||
                     DEFAULT_FOOD_IMAGE
                   }
-                  alt={
-                    r.aiMenuItem ||
-                    r.name
-                  }
+                  alt={r.aiMenuItem || r.name}
                   onError={(e) => {
-                    e.currentTarget.src =
-                      DEFAULT_FOOD_IMAGE;
+                    e.currentTarget.src = DEFAULT_FOOD_IMAGE;
                   }}
                 />
-
-
                 <div>
-
-                  <h3>
-                    {r.name}
-                  </h3>
-
-
+                  <h3>{r.name}</h3>
                   {r.aiMenuItem && (
                     <p>
-                      🍽️{' '}
-                      <strong>
-                        {r.aiMenuItem}
-                      </strong>{' '}
-                      · ₹{r.aiPrice}
+                      🍽️ <strong>{r.aiMenuItem}</strong> · ₹{r.aiPrice}
                     </p>
                   )}
-
-
-                  {r.aiReason && (
-                    <p className="aiReason">
-                      💡 {r.aiReason}
-                    </p>
-                  )}
-
-
-                  <p>
-                    ⭐ {r.rating} ·{' '}
-                    {r.deliveryTime} min
-                  </p>
-
-
-                  <p>
-                    {r.cuisine?.join(
-                      ', '
-                    )}
-                  </p>
-
-
-                  <small>
-                    ₹
-                    {r.priceForTwo || 400}{' '}
-                    for two
-                  </small>
-
+                  {r.aiReason && <p className="aiReason">💡 {r.aiReason}</p>}
+                  <p>⭐ {r.rating} · {r.deliveryTime} min</p>
+                  <p>{r.cuisine?.join(', ')}</p>
+                  <small>₹{r.priceForTwo || 400} for two</small>
                 </div>
-
               </Link>
-
             ))}
-
           </div>
-
         )}
-
       </section>
-
-
-      {/* =================================================
-          FOOD CATEGORIES
-      ================================================= */}
 
       <section className="categories">
-
-        <h2>
-          What are you craving?
-        </h2>
-
-
+        <h2>What are you craving?</h2>
         <div className="categoryRow">
-
-          <button
-            onClick={() =>
-              chooseCategory('Pizza')
-            }
-          >
-            <span className="categoryEmoji">
-              🍕
-            </span>
-
-            <span>
-              Pizza
-            </span>
+          <button onClick={() => chooseCategory('Pizza')}>
+            <span className="categoryEmoji">🍕</span>
+            <span>Pizza</span>
           </button>
-
-
-          <button
-            onClick={() =>
-              chooseCategory('Burger')
-            }
-          >
-            <span className="categoryEmoji">
-              🍔
-            </span>
-
-            <span>
-              Burgers
-            </span>
+          <button onClick={() => chooseCategory('Burger')}>
+            <span className="categoryEmoji">🍔</span>
+            <span>Burgers</span>
           </button>
-
-
-          <button
-            onClick={() =>
-              chooseCategory('Chinese')
-            }
-          >
-            <span className="categoryEmoji">
-              🍜
-            </span>
-
-            <span>
-              Chinese
-            </span>
+          <button onClick={() => chooseCategory('Chinese')}>
+            <span className="categoryEmoji">🍜</span>
+            <span>Chinese</span>
           </button>
-
-
-          <button
-            onClick={() =>
-              chooseCategory('Indian')
-            }
-          >
-            <span className="categoryEmoji">
-              🍛
-            </span>
-
-            <span>
-              Indian
-            </span>
+          <button onClick={() => chooseCategory('Indian')}>
+            <span className="categoryEmoji">🍛</span>
+            <span>Indian</span>
           </button>
-
-
-          <button
-            onClick={() =>
-              chooseCategory('Healthy')
-            }
-          >
-            <span className="categoryEmoji">
-              🥗
-            </span>
-
-            <span>
-              Healthy
-            </span>
+          <button onClick={() => chooseCategory('Healthy')}>
+            <span className="categoryEmoji">🥗</span>
+            <span>Healthy</span>
           </button>
-
-
-          <button
-            onClick={() =>
-              chooseCategory('Dessert')
-            }
-          >
-            <span className="categoryEmoji">
-              🍰
-            </span>
-
-            <span>
-              Desserts
-            </span>
+          <button onClick={() => chooseCategory('Dessert')}>
+            <span className="categoryEmoji">🍰</span>
+            <span>Desserts</span>
           </button>
-
         </div>
-
       </section>
 
-
-      {/* =================================================
-          RESTAURANTS
-      ================================================= */}
-
       <section className="restaurantsSection">
-
         <div
           style={{
             display: 'flex',
-            justifyContent:
-              'space-between',
+            justifyContent: 'space-between',
             alignItems: 'center',
             gap: '20px',
             flexWrap: 'wrap'
           }}
         >
-
           <div>
-
             <h2>
-
               {selectedLocation
                 ? 'Restaurants near you'
                 : q
                 ? `Restaurants for "${q}"`
                 : 'Top restaurants'}
-
             </h2>
-
-
             {selectedLocation && (
-              <p
-                style={{
-                  marginTop:
-                    '-5px',
-                  color: '#666'
-                }}
-              >
+              <p style={{ marginTop: '-5px', color: '#666' }}>
                 Sorted by distance 📍
               </p>
             )}
-
           </div>
 
-
-          <div
-            style={{
-              display: 'flex',
-              gap: '10px'
-            }}
-          >
-
+          <div style={{ display: 'flex', gap: '10px' }}>
             {q && (
-
               <button
                 className="primary"
                 onClick={() => {
@@ -1827,346 +886,164 @@ function Home() {
               >
                 Clear search
               </button>
-
             )}
-
           </div>
-
         </div>
 
-
         {nearbyRestaurants.length === 0 ? (
-
           <div className="emptyState">
-
-            <div>
-              📍
-            </div>
-
-            <h3>
-              No restaurants found nearby
-            </h3>
-
+            <div>📍</div>
+            <h3>No restaurants found nearby</h3>
             <p>
-              Try increasing your search
-              radius or choose another
-              location.
+              Try increasing your search radius or choose another location.
             </p>
-
-
             {selectedLocation && (
               <button
                 className="primary"
-                onClick={() =>
-                  setRadius(50)
-                }
+                onClick={() => setRadius(50)}
               >
                 Search within 50 km
               </button>
             )}
-
           </div>
-
         ) : (
-
           <div className="grid">
-
-            {nearbyRestaurants.map(
-              (r) => (
-
-                <Link
-                  className="card"
-                  key={r._id}
-                  to={`/restaurant/${r._id}`}
-                >
-
-                  <img
-                    src={
-                      getImage(
-                        r.image,
-                        img(
-                          '1552566626-52f8b828add9'
-                        )
-                      )
-                    }
-                    alt={r.name}
-                    onError={(e) => {
-                      e.currentTarget.src =
-                        DEFAULT_FOOD_IMAGE;
-                    }}
-                  />
-
-
-                  <div>
-
-                    <h3>
-                      {r.name}
-                    </h3>
-
-
-                    <p>
-                      ⭐ {r.rating} ·{' '}
-                      {r.deliveryTime} min
+            {nearbyRestaurants.map((r) => (
+              <Link
+                className="card"
+                key={r._id}
+                to={`/restaurant/${r._id}`}
+              >
+                <img
+                  src={getImage(r.image, img('1552566626-52f8b828add9'))}
+                  alt={r.name}
+                  onError={(e) => {
+                    e.currentTarget.src = DEFAULT_FOOD_IMAGE;
+                  }}
+                />
+                <div>
+                  <h3>{r.name}</h3>
+                  <p>⭐ {r.rating} · {r.deliveryTime} min</p>
+                  <p>{r.cuisine?.join(', ')}</p>
+                  {r.distance !== null && (
+                    <p
+                      style={{
+                        fontWeight: '700',
+                        color: '#ff5a1f'
+                      }}
+                    >
+                      📍 {r.distance.toFixed(1)} km away
                     </p>
-
-
-                    <p>
-                      {r.cuisine?.join(
-                        ', '
-                      )}
-                    </p>
-
-
-                    {r.distance !== null && (
-                      <p
-                        style={{
-                          fontWeight:
-                            '700',
-                          color:
-                            '#ff5a1f'
-                        }}
-                      >
-                        📍{' '}
-                        {r.distance.toFixed(
-                          1
-                        )}{' '}
-                        km away
-                      </p>
-                    )}
-
-
-                    <small>
-                      ₹
-                      {r.priceForTwo || 400}{' '}
-                      for two
-                    </small>
-
-                  </div>
-
-                </Link>
-
-              )
-            )}
-
+                  )}
+                  <small>₹{r.priceForTwo || 400} for two</small>
+                </div>
+              </Link>
+            ))}
           </div>
-
         )}
-
       </section>
 
-
-      {/* =================================================
-          RESTAURANT MAP
-      ================================================= */}
-
       <RestaurantMap
-        restaurants={
-          nearbyRestaurants
-        }
-        selectedLocation={
-          selectedLocation
-        }
-        setSelectedLocation={
-          setSelectedLocation
-        }
+        restaurants={nearbyRestaurants}
+        selectedLocation={selectedLocation}
+        setSelectedLocation={setSelectedLocation}
       />
-
     </main>
   );
 }
-
 
 // =========================================================
 // RESTAURANT PAGE
 // =========================================================
 
 function Restaurant({ add }) {
-
-  const { id } =
-    useParams();
-
-  const [data, setData] =
-    useState(null);
-
+  const { id } = useParams();
+  const [data, setData] = useState(null);
 
   useEffect(() => {
-
-    fetch(
-      `${API}/restaurants/${id}`
-    )
+    fetch(`${API}/restaurants/${id}`)
       .then((r) => r.json())
       .then(setData)
-      .catch((error) =>
-        console.error(
-          'Restaurant error:',
-          error
-        )
-      );
-
+      .catch((error) => console.error('Restaurant error:', error));
   }, [id]);
-
 
   if (!data) {
     return (
       <main>
-        <p>
-          Loading...
-        </p>
+        <p>Loading...</p>
       </main>
     );
   }
 
-
   return (
     <main>
-
       <div className="restaurantHead">
-
         <div>
-
-          <h1>
-            {data.restaurant.name}
-          </h1>
-
+          <h1>{data.restaurant.name}</h1>
           <p>
-            ⭐{' '}
-            {data.restaurant.rating} ·{' '}
-            {data.restaurant.cuisine?.join(
-              ', '
-            )}
+            ⭐ {data.restaurant.rating} · {data.restaurant.cuisine?.join(', ')}
           </p>
-
           <p>
-            {data.restaurant.location} ·{' '}
-            {data.restaurant.deliveryTime}{' '}
-            min
+            {data.restaurant.location} · {data.restaurant.deliveryTime} min
           </p>
-
         </div>
-
       </div>
 
-
-      <h2>
-        Menu
-      </h2>
-
+      <h2>Menu</h2>
 
       <div className="menu">
-
         {data.menu?.map((m) => (
-
-          <article
-            className="menuItem"
-            key={m._id}
-          >
-
+          <article className="menuItem" key={m._id}>
             <img
-              src={getImage(
-                m.image,
-                DEFAULT_FOOD_IMAGE
-              )}
+              src={getImage(m.image, DEFAULT_FOOD_IMAGE)}
               alt={m.name}
               className="menuItemImage"
               onError={(e) => {
-                e.currentTarget.src =
-                  DEFAULT_FOOD_IMAGE;
+                e.currentTarget.src = DEFAULT_FOOD_IMAGE;
               }}
             />
-
-
             <div className="menuItemContent">
-
-              <span className="veg">
-                {m.isVeg
-                  ? '🟢'
-                  : '🔴'}
-              </span>
-
-              <h3>
-                {m.name}
-              </h3>
-
-              <b>
-                ₹{m.price}
-              </b>
-
-              <p>
-                {m.description}
-              </p>
-
+              <span className="veg">{m.isVeg ? '🟢' : '🔴'}</span>
+              <h3>{m.name}</h3>
+              <b>₹{m.price}</b>
+              <p>{m.description}</p>
             </div>
-
-
             <button
-              onClick={() =>
-                add(
-                  m,
-                  data.restaurant._id
-                )
-              }
+              onClick={() => add(m, data.restaurant._id)}
             >
               ADD
             </button>
-
           </article>
-
         ))}
-
       </div>
-
     </main>
   );
 }
-
 
 // =========================================================
 // CART (INTEGRATED WITH RAZORPAY /create-order & /verify)
 // =========================================================
 
-function Cart({
-  cart,
-  remove,
-  setCart
-}) {
+function Cart({ cart, remove, setCart }) {
+  const nav = useNavigate();
+  const total = cart.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
 
-  const nav =
-    useNavigate();
-
-  const total =
-    cart.reduce(
-      (sum, item) =>
-        sum +
-        item.price *
-          item.quantity,
-      0
-    );
-
-  const [address, setAddress] =
-    useState('');
-
-  const [msg, setMsg] =
-    useState('');
-
-  const [loading, setLoading] =
-    useState(false);
-
+  const [address, setAddress] = useState('');
+  const [msg, setMsg] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const place = async () => {
-
-    const token =
-      localStorage.getItem(
-        'token'
-      );
+    const token = localStorage.getItem('token');
 
     if (!token) {
       nav('/login');
       return;
     }
 
-    if (!cart.length) {
-      return;
-    }
+    if (!cart.length) return;
 
     if (!address.trim()) {
       setMsg('Please enter a delivery address.');
@@ -2185,54 +1062,41 @@ function Cart({
       }
 
       // Step 1: Create MongoDB Order
-      const createOrderRes = await fetch(
-        `${API}/orders`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            restaurant: cart[0].restaurant,
-            items: cart,
-            total,
-            address
-          })
-        }
-      );
+      const createOrderRes = await fetch(`${API}/orders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          restaurant: cart[0].restaurant,
+          items: cart,
+          total,
+          address
+        })
+      });
 
       const createdOrderData = await createOrderRes.json();
-
       if (!createOrderRes.ok) {
         setLoading(false);
-        setMsg(
-          createdOrderData.message || 'Could not create initial order'
-        );
+        setMsg(createdOrderData.message || 'Could not create initial order');
         return;
       }
 
       const orderId = createdOrderData.order?._id || createdOrderData._id;
-
       setMsg('Opening Razorpay... 💳');
 
-      // Step 2: Create Razorpay Order using orderId
-      const razorpayOrderRes = await fetch(
-        `${API}/payments/create-order`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            orderId
-          })
-        }
-      );
+      // Step 2: Create Razorpay Order
+      const razorpayOrderRes = await fetch(`${API}/payments/create-order`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ orderId })
+      });
 
       const razorpayData = await razorpayOrderRes.json();
-
       if (!razorpayOrderRes.ok) {
         setLoading(false);
         setMsg(
@@ -2253,30 +1117,23 @@ function Cart({
           try {
             setMsg('Verifying payment... 🔐');
 
-            // Step 4: Verify Payment Signature on Backend
-            const verifyRes = await fetch(
-              `${API}/payments/verify`,
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                  razorpay_order_id: response.razorpay_order_id,
-                  razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_signature: response.razorpay_signature,
-                  orderId: razorpayData.orderId
-                })
-              }
-            );
+            const verifyRes = await fetch(`${API}/payments/verify`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                orderId: razorpayData.orderId
+              })
+            });
 
             const verifyData = await verifyRes.json();
-
             if (!verifyRes.ok) {
-              setMsg(
-                verifyData.message || 'Payment verification failed'
-              );
+              setMsg(verifyData.message || 'Payment verification failed');
               return;
             }
 
@@ -2286,7 +1143,6 @@ function Cart({
             setTimeout(() => {
               nav('/orders');
             }, 1500);
-
           } catch (verifyError) {
             console.error('Verification error:', verifyError);
             setMsg('Payment verification failed. Please check your orders.');
@@ -2306,14 +1162,12 @@ function Cart({
       };
 
       const rzp = new window.Razorpay(options);
-
       rzp.on('payment.failed', function (response) {
         setLoading(false);
         setMsg(`Payment failed: ${response.error.description}`);
       });
 
       rzp.open();
-
     } catch (error) {
       console.error('Checkout error:', error);
       setLoading(false);
@@ -2321,59 +1175,27 @@ function Cart({
     }
   };
 
-
   return (
     <main>
-
-      <h1>
-        Your cart
-      </h1>
-
+      <h1>Your cart</h1>
 
       {cart.length === 0 ? (
-
         <div className="emptyState">
-
-          <div>
-            🛒
-          </div>
-
-          <h3>
-            Your cart is empty
-          </h3>
-
-          <p>
-            Add something delicious
-            from a restaurant.
-          </p>
-
-          <Link
-            to="/"
-            className="primary"
-          >
+          <div>🛒</div>
+          <h3>Your cart is empty</h3>
+          <p>Add something delicious from a restaurant.</p>
+          <Link to="/" className="primary">
             Browse restaurants
           </Link>
-
         </div>
-
       ) : (
-
         <>
-
           <div className="cartList">
-
             {cart.map((i) => (
-
-              <div
-                className="cartRow"
-                key={i.menuItem}
-              >
-
+              <div className="cartRow" key={i.menuItem}>
                 {i.image && (
                   <img
-                    src={getImage(
-                      i.image
-                    )}
+                    src={getImage(i.image)}
                     alt={i.name}
                     style={{
                       width: '60px',
@@ -2383,370 +1205,307 @@ function Cart({
                     }}
                   />
                 )}
-
-                <span>
-                  {i.name}
-                </span>
-
-                <span>
-                  ₹{i.price} ×{' '}
-                  {i.quantity}
-                </span>
-
-                <button
-                  onClick={() =>
-                    remove(
-                      i.menuItem
-                    )
-                  }
-                >
-                  −
-                </button>
-
+                <span>{i.name}</span>
+                <span>₹{i.price} × {i.quantity}</span>
+                <button onClick={() => remove(i.menuItem)}>−</button>
               </div>
-
             ))}
-
           </div>
 
-
-          <h2>
-            Total: ₹{total}
-          </h2>
-
+          <h2>Total: ₹{total}</h2>
 
           <textarea
             value={address}
-            onChange={(e) =>
-              setAddress(
-                e.target.value
-              )
-            }
+            onChange={(e) => setAddress(e.target.value)}
             placeholder="Delivery address"
           />
 
-
-          <button
-            className="primary"
-            onClick={place}
-            disabled={loading}
-          >
+          <button className="primary" onClick={place} disabled={loading}>
             {loading ? 'Processing... 💳' : 'Pay with Razorpay 💳'}
           </button>
 
-
-          {msg && (
-            <p>
-              {msg}
-            </p>
-          )}
-
+          {msg && <p>{msg}</p>}
         </>
       )}
-
     </main>
   );
 }
-
 
 // =========================================================
 // LOGIN / REGISTER
 // =========================================================
 
 function Auth({ mode }) {
+  const nav = useNavigate();
+  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [msg, setMsg] = useState('');
 
-  const nav =
-    useNavigate();
+  const submit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API}/auth/${mode}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form)
+      });
 
-
-  const [form, setForm] =
-    useState({
-      name: '',
-      email: '',
-      password: ''
-    });
-
-
-  const [msg, setMsg] =
-    useState('');
-
-
-  const submit =
-    async (e) => {
-
-      e.preventDefault();
-
-
-      try {
-
-        const res =
-          await fetch(
-            `${API}/auth/${mode}`,
-            {
-              method: 'POST',
-
-              headers: {
-                'Content-Type':
-                  'application/json'
-              },
-
-              body: JSON.stringify(
-                form
-              )
-            }
-          );
-
-
-        const b =
-          await res.json();
-
-
-        if (!res.ok) {
-
-          setMsg(
-            b.message ||
-            'Authentication failed'
-          );
-
-          return;
-        }
-
-
-        localStorage.setItem(
-          'token',
-          b.token
-        );
-
-
-        setMsg(
-          mode === 'login'
-            ? 'Login successful! 🎉'
-            : 'Account created successfully! 🎉'
-        );
-
-
-        setTimeout(() => {
-          nav('/');
-        }, 1500);
-
-      } catch (error) {
-
-        console.error(
-          'Auth error:',
-          error
-        );
-
-        setMsg(
-          'Something went wrong. Please try again.'
-        );
+      const b = await res.json();
+      if (!res.ok) {
+        setMsg(b.message || 'Authentication failed');
+        return;
       }
-    };
 
+      localStorage.setItem('token', b.token);
+      setMsg(
+        mode === 'login'
+          ? 'Login successful! 🎉'
+          : 'Account created successfully! 🎉'
+      );
+
+      setTimeout(() => {
+        nav('/');
+      }, 1500);
+    } catch (error) {
+      console.error('Auth error:', error);
+      setMsg('Something went wrong. Please try again.');
+    }
+  };
 
   return (
     <main className="formPage">
-
-      <form
-        onSubmit={submit}
-      >
-
-        <h1>
-          {mode === 'login'
-            ? 'Welcome back'
-            : 'Create account'}
-        </h1>
-
-
+      <form onSubmit={submit}>
+        <h1>{mode === 'login' ? 'Welcome back' : 'Create account'}</h1>
         {mode === 'register' && (
-
           <input
             placeholder="Name"
             value={form.name}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                name: e.target.value
-              })
-            }
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
-
         )}
-
-
         <input
           placeholder="Email"
           type="email"
           value={form.email}
-          onChange={(e) =>
-            setForm({
-              ...form,
-              email: e.target.value
-            })
-          }
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
         />
-
-
         <input
           placeholder="Password"
           type="password"
           value={form.password}
-          onChange={(e) =>
-            setForm({
-              ...form,
-              password: e.target.value
-            })
-          }
+          onChange={(e) => setForm({ ...form, password: e.target.value })}
         />
-
-
-        <button
-          className="primary"
-        >
-          {mode === 'login'
-            ? 'Login'
-            : 'Register'}
+        <button className="primary">
+          {mode === 'login' ? 'Login' : 'Register'}
         </button>
-
-
-        {msg && (
-          <p>
-            {msg}
-          </p>
-        )}
-
+        {msg && <p>{msg}</p>}
       </form>
-
     </main>
   );
 }
 
-
 // =========================================================
-// ORDERS
+// ORDERS (SHOWS BOTH PERSONAL & GROUP ORDERS)
 // =========================================================
 
 function Orders() {
-
-  const [orders, setOrders] =
-    useState([]);
-
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-
-    const token =
-      localStorage.getItem(
-        'token'
-      );
-
-
+    const token = localStorage.getItem('token');
     if (!token) {
+      setLoading(false);
       return;
     }
 
-
-    fetch(
-      `${API}/orders/mine`,
-      {
-        headers: {
-          Authorization:
-            `Bearer ${token}`
-        }
+    fetch(`${API}/orders/mine`, {
+      headers: {
+        Authorization: `Bearer ${token}`
       }
-    )
+    })
       .then((r) => r.json())
       .then((result) => {
-
-        setOrders(
-          Array.isArray(result)
-            ? result
-            : []
-        );
-
+        setOrders(Array.isArray(result) ? result : []);
       })
-      .catch((error) =>
-        console.error(
-          'Orders error:',
-          error
-        )
-      );
-
+      .catch((error) => console.error('Orders error:', error))
+      .finally(() => setLoading(false));
   }, []);
 
-
   return (
-    <main>
+    <main style={{ maxWidth: '800px', margin: '40px auto', padding: '0 20px' }}>
+      <h1>Your orders</h1>
 
-      <h1>
-        Your orders
-      </h1>
-
-
-      {!orders.length ? (
-
+      {loading ? (
+        <p style={{ color: '#888' }}>Loading orders...</p>
+      ) : !orders.length ? (
         <div className="emptyState">
-
-          <div>
-            📦
-          </div>
-
-          <h3>
-            No orders yet
-          </h3>
-
-          <p>
-            Your previous orders
-            will appear here.
-          </p>
-
-          <Link
-            to="/"
-            className="primary"
-          >
+          <div>📦</div>
+          <h3>No orders yet</h3>
+          <p>Your previous orders will appear here.</p>
+          <Link to="/" className="primary">
             Start ordering
           </Link>
-
         </div>
-
       ) : (
-
         orders.map((o) => (
-
           <div
             className="order"
             key={o._id}
+            style={{
+              padding: '20px',
+              border: '1px solid #e0e0e0',
+              borderRadius: '14px',
+              marginBottom: '16px',
+              background: '#fff',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+            }}
           >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                borderBottom: '1px solid #f0f0f0',
+                paddingBottom: '10px'
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: '18px' }}>
+                {o.restaurant?.name || 'Restaurant'}
+              </h3>
+              <div style={{ textAlign: 'right' }}>
+                <span
+                  style={{
+                    fontWeight: 'bold',
+                    color: o.paymentStatus === 'PAID' ? '#2e7d32' : '#e65100'
+                  }}
+                >
+                  ₹{o.total} · {o.paymentStatus || 'PENDING'}
+                </span>
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: '12px',
+                    color: '#777',
+                    marginTop: '2px'
+                  }}
+                >
+                  Status: {o.status || 'PLACED'}
+                </span>
+              </div>
+            </div>
 
-            <h3>
-              {o.restaurant?.name}
-            </h3>
+            {/* GROUP ORDER BREAKDOWN OR PERSONAL ORDER LIST */}
+            {o.isGroupOrder ? (
+              <div style={{ marginTop: '12px' }}>
+                <span
+                  style={{
+                    background: '#fff3e0',
+                    color: '#e65100',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    display: 'inline-block',
+                    marginBottom: '8px'
+                  }}
+                >
+                  👥 Group Order #{o.groupCode} • Split:{' '}
+                  {o.splitMode === 'EQUAL' ? 'Equal' : 'Itemized'}
+                </span>
 
-            <p>
-              ₹{o.total} ·{' '}
-              {o.status}
+                <div
+                  style={{
+                    background: '#fafafa',
+                    padding: '12px 14px',
+                    borderRadius: '8px'
+                  }}
+                >
+                  {o.groupMembers && o.groupMembers.length > 0 ? (
+                    o.groupMembers.map((member, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          marginBottom:
+                            idx < o.groupMembers.length - 1 ? '10px' : '0',
+                          fontSize: '14px'
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            fontWeight: '600'
+                          }}
+                        >
+                          <span>{member.name}</span>
+                          <span>
+                            ₹{member.shareAmount || 0} (
+                            {member.paymentStatus === 'PAID' ? '✅ Paid' : '⏳ Pending'}
+                            )
+                          </span>
+                        </div>
+                        <ul
+                          style={{
+                            margin: '4px 0 0 0',
+                            paddingLeft: '18px',
+                            fontSize: '13px',
+                            color: '#666'
+                          }}
+                        >
+                          {member.items && member.items.length > 0 ? (
+                            member.items.map((item, i) => (
+                              <li key={i}>
+                                {item.name} × {item.quantity} (₹
+                                {item.price * item.quantity})
+                              </li>
+                            ))
+                          ) : (
+                            <li>No dishes added</li>
+                          )}
+                        </ul>
+                      </div>
+                    ))
+                  ) : (
+                    <p style={{ margin: 0, fontSize: '13px', color: '#888' }}>
+                      No member items recorded.
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div style={{ marginTop: '12px' }}>
+                <ul
+                  style={{
+                    margin: '6px 0',
+                    paddingLeft: '18px',
+                    fontSize: '14px',
+                    color: '#555'
+                  }}
+                >
+                  {o.items?.map((item, idx) => (
+                    <li key={idx}>
+                      {item.name} × {item.quantity} (₹{item.price * item.quantity})
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <p style={{ margin: '12px 0 0 0', fontSize: '13px', color: '#777' }}>
+              📍 <strong>Delivery Address:</strong> {o.address}
             </p>
-
-            <p>
-              {o.address}
-            </p>
-
           </div>
-
         ))
-
       )}
-
     </main>
   );
 }
-
 
 // =========================================================
 // START APP
 // =========================================================
 
-createRoot(
-  document.getElementById('root')
-).render(
+createRoot(document.getElementById('root')).render(
   <BrowserRouter>
     <App />
   </BrowserRouter>
