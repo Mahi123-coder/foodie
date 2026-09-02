@@ -8,7 +8,12 @@ function GroupOrder() {
 
   const [mode, setMode] = useState('home'); // 'home' | 'dashboard'
 
-  const [restaurant, setRestaurant] = useState('');
+  // Restaurant list state
+  const [restaurantsList, setRestaurantsList] = useState([]);
+  const [loadingRestaurants, setLoadingRestaurants] = useState(true);
+
+  // Form states
+  const [selectedRestaurant, setSelectedRestaurant] = useState('');
   const [address, setAddress] = useState('');
 
   const [groupCode, setGroupCode] = useState('');
@@ -22,16 +27,40 @@ function GroupOrder() {
   const token = localStorage.getItem('token');
 
   // ---------------------------------------------------------
-  // AUTH CHECK
+  // 1. AUTH CHECK & FETCH RESTAURANTS LIST
   // ---------------------------------------------------------
   useEffect(() => {
     if (!token) {
       navigate('/login');
+      return;
     }
+
+    // Fetch all restaurants to populate the dropdown
+    const fetchRestaurants = async () => {
+      try {
+        setLoadingRestaurants(true);
+        const res = await fetch(`${API}/restaurants`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        const data = await res.json();
+        
+        // Supports array response or { restaurants: [...] }
+        const list = Array.isArray(data) ? data : data.restaurants || [];
+        setRestaurantsList(list);
+      } catch (err) {
+        console.error('Failed to load restaurants:', err);
+      } finally {
+        setLoadingRestaurants(false);
+      }
+    };
+
+    fetchRestaurants();
   }, [token, navigate]);
 
   // ---------------------------------------------------------
-  // LOAD / REFRESH GROUP
+  // 2. LOAD / REFRESH GROUP
   // ---------------------------------------------------------
   const loadGroup = useCallback(async (codeToLoad) => {
     const code = codeToLoad || groupCode;
@@ -57,7 +86,7 @@ function GroupOrder() {
     }
   }, [groupCode, token]);
 
-  // Auto-refresh when dashboard is active (polls every 4 seconds)
+  // Auto-polling on dashboard
   useEffect(() => {
     if (mode === 'dashboard' && groupCode) {
       loadGroup(groupCode);
@@ -69,20 +98,13 @@ function GroupOrder() {
   }, [mode, groupCode, loadGroup]);
 
   // ---------------------------------------------------------
-  // CREATE GROUP
+  // 3. CREATE GROUP (Sends chosen restaurant ID)
   // ---------------------------------------------------------
   const createGroup = async () => {
     setMessage('');
 
-    if (!restaurant.trim()) {
-      setMessage('Please enter a valid Restaurant ID.');
-      return;
-    }
-
-    // 24-character hexadecimal check to prevent Mongoose CastError (500)
-    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(restaurant.trim());
-    if (!isValidObjectId) {
-      setMessage('Restaurant ID must be a valid 24-character MongoDB ID (e.g. from your database).');
+    if (!selectedRestaurant) {
+      setMessage('Please select a restaurant from the list.');
       return;
     }
 
@@ -102,7 +124,7 @@ function GroupOrder() {
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          restaurant: restaurant.trim(),
+          restaurant: selectedRestaurant,
           address: address.trim()
         })
       });
@@ -129,7 +151,7 @@ function GroupOrder() {
   };
 
   // ---------------------------------------------------------
-  // JOIN GROUP
+  // 4. JOIN GROUP
   // ---------------------------------------------------------
   const joinGroup = async () => {
     setMessage('');
@@ -182,7 +204,7 @@ function GroupOrder() {
   };
 
   // ---------------------------------------------------------
-  // HOME SCREEN (CREATE OR JOIN)
+  // 5. HOME SCREEN
   // ---------------------------------------------------------
   if (mode === 'home') {
     return (
@@ -200,7 +222,7 @@ function GroupOrder() {
             marginTop: '30px'
           }}
         >
-          {/* CREATE GROUP */}
+          {/* CREATE GROUP CARD */}
           <div
             style={{
               padding: '25px',
@@ -211,24 +233,37 @@ function GroupOrder() {
             }}
           >
             <h2>Start a Group 🎉</h2>
-            <p style={{ color: '#777', fontSize: '14px' }}>Create an order and invite your friends.</p>
+            <p style={{ color: '#777', fontSize: '14px' }}>Choose a place and invite your friends.</p>
 
-            <input
-              placeholder="Restaurant ID (24 hex characters)"
-              value={restaurant}
-              onChange={(e) => setRestaurant(e.target.value)}
+            {/* RESTAURANT DROPDOWN */}
+            <select
+              value={selectedRestaurant}
+              onChange={(e) => setSelectedRestaurant(e.target.value)}
+              disabled={loadingRestaurants}
               style={{
                 width: '100%',
                 padding: '12px',
                 marginBottom: '12px',
                 boxSizing: 'border-box',
                 borderRadius: '8px',
-                border: '1px solid #ccc'
+                border: '1px solid #ccc',
+                background: '#fff',
+                fontSize: '14px'
               }}
-            />
+            >
+              <option value="">
+                {loadingRestaurants ? 'Loading restaurants...' : '-- Select a Restaurant --'}
+              </option>
+              {restaurantsList.map((r) => (
+                <option key={r._id} value={r._id}>
+                  {r.name} {r.cuisine ? `(${r.cuisine})` : ''}
+                </option>
+              ))}
+            </select>
 
+            {/* DELIVERY ADDRESS */}
             <textarea
-              placeholder="Delivery address"
+              placeholder="Delivery address (e.g. Room 204, Block B)"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               rows={3}
@@ -238,7 +273,8 @@ function GroupOrder() {
                 marginBottom: '16px',
                 boxSizing: 'border-box',
                 borderRadius: '8px',
-                border: '1px solid #ccc'
+                border: '1px solid #ccc',
+                fontSize: '14px'
               }}
             />
 
@@ -260,7 +296,7 @@ function GroupOrder() {
             </button>
           </div>
 
-          {/* JOIN GROUP */}
+          {/* JOIN GROUP CARD */}
           <div
             style={{
               padding: '25px',
@@ -283,7 +319,8 @@ function GroupOrder() {
                 marginBottom: '12px',
                 boxSizing: 'border-box',
                 borderRadius: '8px',
-                border: '1px solid #ccc'
+                border: '1px solid #ccc',
+                fontSize: '14px'
               }}
             />
 
@@ -297,7 +334,8 @@ function GroupOrder() {
                 marginBottom: '16px',
                 boxSizing: 'border-box',
                 borderRadius: '8px',
-                border: '1px solid #ccc'
+                border: '1px solid #ccc',
+                fontSize: '14px'
               }}
             />
 
@@ -339,7 +377,7 @@ function GroupOrder() {
   }
 
   // ---------------------------------------------------------
-  // GROUP DASHBOARD
+  // 6. DASHBOARD SCREEN
   // ---------------------------------------------------------
   return (
     <main style={{ maxWidth: '800px', margin: '40px auto', padding: '0 20px', fontFamily: 'sans-serif' }}>
@@ -359,7 +397,6 @@ function GroupOrder() {
 
       <h1>Group Order Room</h1>
 
-      {/* INVITE BOX */}
       <div
         style={{
           padding: '25px',
@@ -402,7 +439,6 @@ function GroupOrder() {
         </button>
       </div>
 
-      {/* MEMBERS LIST */}
       <section style={{ marginTop: '30px' }}>
         <h2>Group Members ({group?.groupMembers?.length || 0})</h2>
         {group?.groupMembers?.length ? (
@@ -423,7 +459,7 @@ function GroupOrder() {
               <div>
                 <strong>{member.name || 'Member'}</strong>
                 <div style={{ color: '#777', fontSize: '13px', marginTop: '4px' }}>
-                  {member.items?.length || 0} item(s) ordered
+                  {member.items?.length || 0} item(s) selected
                 </div>
               </div>
 
@@ -444,7 +480,6 @@ function GroupOrder() {
         )}
       </section>
 
-      {/* TOTAL SUMMARY */}
       <section
         style={{
           marginTop: '30px',
