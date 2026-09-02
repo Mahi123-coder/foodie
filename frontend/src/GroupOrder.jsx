@@ -25,9 +25,25 @@ function GroupOrder() {
   const [group, setGroup] = useState(null);
   const [loading, setLoading] = useState(false);
   const [addingItem, setAddingItem] = useState(false);
+  const [paying, setPaying] = useState(false);
   const [message, setMessage] = useState('');
 
   const token = localStorage.getItem('token');
+
+  // Decode user ID safely from JWT token to identify the logged-in member
+  const getLoggedInUserId = () => {
+    if (!token) return null;
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const payload = JSON.parse(window.atob(base64));
+      return payload.id || payload._id || payload.userId;
+    } catch {
+      return null;
+    }
+  };
+
+  const currentUserId = getLoggedInUserId();
 
   // ---------------------------------------------------------
   // 1. AUTH CHECK & INITIAL RESTAURANTS LIST
@@ -60,17 +76,18 @@ function GroupOrder() {
   }, [token, navigate]);
 
   // ---------------------------------------------------------
-  // 2. FETCH MENU FOR THE GROUP'S RESTAURANT (Runs only once)
+  // 2. FETCH MENU (Fixed to prevent flickering on poll)
   // ---------------------------------------------------------
-  // Extract primitive string ID so object references don't re-trigger it
   const restaurantId =
     typeof group?.restaurant === 'object'
       ? group?.restaurant?._id?.toString()
       : group?.restaurant?.toString();
 
   useEffect(() => {
-    // Only fetch if we have an ID and haven't loaded items yet
-    if (!restaurantId || !token || mode !== 'dashboard' || menuItems.length > 0) return;
+    if (!restaurantId || !token || mode !== 'dashboard') return;
+
+    // Skip if menu is already loaded for this restaurant to stop the flicker
+    if (menuItems.length > 0) return;
 
     const fetchMenu = async () => {
       try {
@@ -82,7 +99,6 @@ function GroupOrder() {
         });
 
         const data = await res.json();
-
         if (!res.ok) {
           throw new Error(data.message || 'Could not load menu');
         }
@@ -100,7 +116,7 @@ function GroupOrder() {
   }, [restaurantId, token, mode, menuItems.length]);
 
   // ---------------------------------------------------------
-  // 3. LOAD & REFRESH GROUP DETAILS
+  // 3. LOAD & REFRESH GROUP DETAILS (Polling)
   // ---------------------------------------------------------
   const loadGroup = useCallback(async (codeToLoad) => {
     const code = codeToLoad || groupCode;
@@ -126,7 +142,6 @@ function GroupOrder() {
     }
   }, [groupCode, token]);
 
-  // Real-time polling every 4 seconds while inside the dashboard
   useEffect(() => {
     if (mode === 'dashboard' && groupCode) {
       loadGroup(groupCode);
@@ -170,7 +185,6 @@ function GroupOrder() {
       });
 
       const data = await response.json();
-
       if (!response.ok) {
         throw new Error(data.message || 'Could not create group');
       }
@@ -180,6 +194,7 @@ function GroupOrder() {
 
       setGroup(createdOrder);
       setGroupCode(code);
+      setMenuItems([]); // reset menu items for new room
       setMode('dashboard');
       setMessage('Group created successfully! 🎉');
     } catch (error) {
@@ -224,7 +239,6 @@ function GroupOrder() {
       });
 
       const data = await response.json();
-
       if (!response.ok) {
         throw new Error(data.message || 'Could not join group');
       }
@@ -233,6 +247,7 @@ function GroupOrder() {
 
       setGroup(joinedOrder);
       setGroupCode(joinedOrder.groupCode || code);
+      setMenuItems([]); // reset menu items for new room
       setMode('dashboard');
       setMessage('Joined group successfully! 🎉');
     } catch (error) {
@@ -266,7 +281,6 @@ function GroupOrder() {
         throw new Error(data.message || 'Failed to add item');
       }
 
-      // Refresh data immediately
       loadGroup(groupCode);
     } catch (err) {
       alert(err.message);
@@ -276,6 +290,43 @@ function GroupOrder() {
   };
 
   // ---------------------------------------------------------
+  // 7. PAY MEMBER SHARE
+  // ---------------------------------------------------------
+  const handlePayShare = async () => {
+    try {
+      setPaying(true);
+      const res = await fetch(`${API}/group-orders/${groupCode}/pay`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Payment failed');
+      }
+
+      setMessage('Your split share has been paid successfully! 💳');
+      loadGroup(groupCode);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  // Find the current logged in member within the group members array
+  const myMemberRecord = group?.groupMembers?.find((m) => {
+    const memberId = m.user?._id || m.user;
+    return memberId && currentUserId && memberId.toString() === currentUserId.toString();
+  });
+
+  const myShareAmount = myMemberRecord?.shareAmount || 0;
+  const isMySharePaid = myMemberRecord?.paymentStatus === 'PAID';
+
+  // ---------------------------------------------------------
   // RENDER: HOME SCREEN
   // ---------------------------------------------------------
   if (mode === 'home') {
@@ -283,7 +334,7 @@ function GroupOrder() {
       <main style={{ maxWidth: '900px', margin: '40px auto', padding: '0 20px', fontFamily: 'sans-serif' }}>
         <h1 style={{ textAlign: 'center' }}>Group Order 👥</h1>
         <p style={{ textAlign: 'center', color: '#666' }}>
-          Order together with friends and let everyone pay their own share.
+          Order together with friends and split the bill seamlessly.
         </p>
 
         <div
@@ -294,7 +345,7 @@ function GroupOrder() {
             marginTop: '30px'
           }}
         >
-          {/* CREATE GROUP CARD */}
+          {/* CREATE CARD */}
           <div
             style={{
               padding: '25px',
@@ -327,7 +378,7 @@ function GroupOrder() {
               </option>
               {restaurantsList.map((r) => (
                 <option key={r._id} value={r._id}>
-                  {r.name} {r.cuisine ? `(${r.cuisine})` : ''}
+                  {r.name} {r.cuisine ? `(${Array.isArray(r.cuisine) ? r.cuisine.join(', ') : r.cuisine})` : ''}
                 </option>
               ))}
             </select>
@@ -366,7 +417,7 @@ function GroupOrder() {
             </button>
           </div>
 
-          {/* JOIN GROUP CARD */}
+          {/* JOIN CARD */}
           <div
             style={{
               padding: '25px',
@@ -380,7 +431,7 @@ function GroupOrder() {
             <p style={{ color: '#777', fontSize: '14px' }}>Enter the code shared by your friend.</p>
 
             <input
-              placeholder="Group code (e.g. 9B3C2A)"
+              placeholder="Group code (e.g. EF675AA3)"
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
               style={{
@@ -447,7 +498,7 @@ function GroupOrder() {
   }
 
   // ---------------------------------------------------------
-  // RENDER: GROUP ROOM DASHBOARD
+  // RENDER: DASHBOARD SCREEN
   // ---------------------------------------------------------
   return (
     <main style={{ maxWidth: '850px', margin: '30px auto', padding: '0 20px', fontFamily: 'sans-serif' }}>
@@ -510,7 +561,7 @@ function GroupOrder() {
         </button>
       </div>
 
-      {/* RESTAURANT MENU DISHES */}
+      {/* RESTAURANT MENU ITEMS */}
       <section style={{ marginTop: '35px' }}>
         <h2 style={{ marginBottom: '6px' }}>Add Items From The Menu 🍕</h2>
         <p style={{ color: '#666', fontSize: '14px', margin: '0 0 15px 0' }}>
@@ -555,19 +606,19 @@ function GroupOrder() {
 
                 <button
                   onClick={() => handleAddItem(item._id)}
-                  disabled={addingItem}
+                  disabled={addingItem || isMySharePaid}
                   style={{
                     marginTop: '14px',
                     padding: '8px 12px',
-                    backgroundColor: '#ff5722',
+                    backgroundColor: isMySharePaid ? '#ccc' : '#ff5722',
                     color: '#fff',
                     border: 'none',
                     borderRadius: '6px',
                     fontWeight: 'bold',
-                    cursor: addingItem ? 'not-allowed' : 'pointer'
+                    cursor: addingItem || isMySharePaid ? 'not-allowed' : 'pointer'
                   }}
                 >
-                  + Add Item
+                  {isMySharePaid ? 'Share Paid' : '+ Add Item'}
                 </button>
               </div>
             ))}
@@ -587,106 +638,155 @@ function GroupOrder() {
         )}
       </section>
 
-      {/* MEMBERS & SPLIT DETAILS */}
+      {/* MEMBERS, SELECTIONS, AND SPLIT BREAKDOWN */}
       <section style={{ marginTop: '40px' }}>
         <h2>Group Members ({group?.groupMembers?.length || 0})</h2>
         {group?.groupMembers?.length ? (
-          group.groupMembers.map((member, index) => (
-            <div
-              key={member.user?._id || member.user || index}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                padding: '16px 20px',
-                marginTop: '12px',
-                border: '1px solid #e0e0e0',
-                borderRadius: '12px',
-                background: '#fff'
-              }}
-            >
-              <div>
-                <strong style={{ fontSize: '16px' }}>{member.name || 'Member'}</strong>
+          group.groupMembers.map((member, index) => {
+            const isMe =
+              (member.user?._id || member.user)?.toString() === currentUserId?.toString();
 
-                {/* List individual items ordered by this member */}
-                {member.items && member.items.length > 0 ? (
-                  <ul
-                    style={{
-                      margin: '8px 0 0 0',
-                      paddingLeft: '20px',
-                      fontSize: '13px',
-                      color: '#444'
-                    }}
-                  >
-                    {member.items.map((it, i) => (
-                      <li key={i} style={{ marginBottom: '3px' }}>
-                        {it.name} × {it.quantity} (₹{it.price * it.quantity})
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div style={{ color: '#999', fontSize: '13px', marginTop: '6px' }}>
-                    No items selected yet
-                  </div>
-                )}
-              </div>
+            return (
+              <div
+                key={member.user?._id || member.user || index}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  padding: '16px 20px',
+                  marginTop: '12px',
+                  border: isMe ? '2px solid #ff5722' : '1px solid #e0e0e0',
+                  borderRadius: '12px',
+                  background: '#fff'
+                }}
+              >
+                <div>
+                  <strong style={{ fontSize: '16px' }}>
+                    {member.name || 'Member'} {isMe && '(You)'}
+                  </strong>
 
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '18px', color: '#222' }}>
-                  ₹{member.shareAmount || 0}
-                </div>
-                <div style={{ fontSize: '13px', marginTop: '6px' }}>
-                  {member.paymentStatus === 'PAID' ? (
-                    <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>✅ Paid</span>
-                  ) : member.paymentStatus === 'FAILED' ? (
-                    <span style={{ color: '#c62828', fontWeight: 'bold' }}>❌ Failed</span>
+                  {member.items && member.items.length > 0 ? (
+                    <ul
+                      style={{
+                        margin: '8px 0 0 0',
+                        paddingLeft: '20px',
+                        fontSize: '13px',
+                        color: '#444'
+                      }}
+                    >
+                      {member.items.map((it, i) => (
+                        <li key={i} style={{ marginBottom: '3px' }}>
+                          {it.name} × {it.quantity} (₹{it.price * it.quantity})
+                        </li>
+                      ))}
+                    </ul>
                   ) : (
-                    <span style={{ color: '#ef6c00', fontWeight: 'bold' }}>⏳ Pending</span>
+                    <div style={{ color: '#999', fontSize: '13px', marginTop: '6px' }}>
+                      No items selected yet
+                    </div>
                   )}
                 </div>
+
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '18px', color: '#222' }}>
+                    ₹{member.shareAmount || 0}
+                  </div>
+                  <div style={{ fontSize: '13px', marginTop: '6px' }}>
+                    {member.paymentStatus === 'PAID' ? (
+                      <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>✅ Paid</span>
+                    ) : member.paymentStatus === 'FAILED' ? (
+                      <span style={{ color: '#c62828', fontWeight: 'bold' }}>❌ Failed</span>
+                    ) : (
+                      <span style={{ color: '#ef6c00', fontWeight: 'bold' }}>⏳ Pending</span>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         ) : (
           <p style={{ color: '#888' }}>No members have joined yet.</p>
         )}
       </section>
 
-      {/* GRAND TOTAL SUMMARY */}
+      {/* GRAND TOTAL & PAYMENT CONTROL CARD */}
       <section
         style={{
           marginTop: '35px',
-          padding: '20px',
+          padding: '24px',
           background: '#fafafa',
-          borderRadius: '12px',
+          borderRadius: '14px',
           border: '1px solid #eee',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center'
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '15px'
         }}
       >
         <div>
           <h2 style={{ margin: 0, fontSize: '22px' }}>Total Order: ₹{group?.total || 0}</h2>
           <p style={{ margin: '6px 0 0 0', color: '#666', fontSize: '14px' }}>
             {group?.allMembersPaid
-              ? '🎉 Everyone has paid! Ready to dispatch.'
-              : 'Waiting for everyone to select items and pay...'}
+              ? '🎉 Everyone has paid! Order is placed and confirmed.'
+              : `Your Share: ₹${myShareAmount} • ${isMySharePaid ? 'Paid ✅' : 'Payment Pending ⏳'}`}
           </p>
         </div>
 
-        <button
-          style={{
-            padding: '10px 18px',
-            borderRadius: '8px',
-            border: '1px solid #ccc',
-            background: '#fff',
-            cursor: 'pointer',
-            fontWeight: '600'
-          }}
-          onClick={() => loadGroup()}
-        >
-          Refresh 🔄
-        </button>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {/* THE PAY BUTTON FOR CURRENT USER'S SPLIT */}
+          {!isMySharePaid && (
+            <button
+              onClick={handlePayShare}
+              disabled={paying || myShareAmount <= 0}
+              style={{
+                padding: '12px 22px',
+                borderRadius: '8px',
+                backgroundColor: myShareAmount > 0 ? '#2e7d32' : '#aaa',
+                color: '#fff',
+                border: 'none',
+                fontWeight: 'bold',
+                cursor: paying || myShareAmount <= 0 ? 'not-allowed' : 'pointer',
+                fontSize: '15px'
+              }}
+            >
+              {paying
+                ? 'Processing...'
+                : myShareAmount > 0
+                ? `Pay My Share (₹${myShareAmount}) 💳`
+                : 'Add Items to Pay'}
+            </button>
+          )}
+
+          {isMySharePaid && (
+            <span
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                background: '#e8f5e9',
+                color: '#2e7d32',
+                fontWeight: 'bold',
+                fontSize: '14px'
+              }}
+            >
+              Your Share is Paid ✅
+            </span>
+          )}
+
+          <button
+            style={{
+              padding: '11px 16px',
+              borderRadius: '8px',
+              border: '1px solid #ccc',
+              background: '#fff',
+              cursor: 'pointer',
+              fontWeight: '600'
+            }}
+            onClick={() => loadGroup()}
+          >
+            Refresh 🔄
+          </button>
+        </div>
       </section>
 
       {message && (
