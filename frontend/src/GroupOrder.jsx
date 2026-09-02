@@ -8,26 +8,29 @@ function GroupOrder() {
 
   const [mode, setMode] = useState('home'); // 'home' | 'dashboard'
 
-  // Restaurant list state
+  // Restaurant & Menu Data
   const [restaurantsList, setRestaurantsList] = useState([]);
   const [loadingRestaurants, setLoadingRestaurants] = useState(true);
+  const [menuItems, setMenuItems] = useState([]);
+  const [loadingMenu, setLoadingMenu] = useState(false);
 
-  // Form states
+  // Form Inputs
   const [selectedRestaurant, setSelectedRestaurant] = useState('');
   const [address, setAddress] = useState('');
-
   const [groupCode, setGroupCode] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [name, setName] = useState('');
 
+  // Room State
   const [group, setGroup] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [addingItem, setAddingItem] = useState(false);
   const [message, setMessage] = useState('');
 
   const token = localStorage.getItem('token');
 
   // ---------------------------------------------------------
-  // 1. AUTH CHECK & FETCH RESTAURANTS LIST
+  // 1. AUTH CHECK & INITIAL RESTAURANTS LIST
   // ---------------------------------------------------------
   useEffect(() => {
     if (!token) {
@@ -35,7 +38,6 @@ function GroupOrder() {
       return;
     }
 
-    // Fetch all restaurants to populate the dropdown
     const fetchRestaurants = async () => {
       try {
         setLoadingRestaurants(true);
@@ -45,8 +47,6 @@ function GroupOrder() {
           }
         });
         const data = await res.json();
-        
-        // Supports array response or { restaurants: [...] }
         const list = Array.isArray(data) ? data : data.restaurants || [];
         setRestaurantsList(list);
       } catch (err) {
@@ -60,7 +60,45 @@ function GroupOrder() {
   }, [token, navigate]);
 
   // ---------------------------------------------------------
-  // 2. LOAD / REFRESH GROUP
+  // 2. FETCH MENU FOR THE GROUP'S RESTAURANT
+  // ---------------------------------------------------------
+  useEffect(() => {
+    const restaurantId =
+      typeof group?.restaurant === 'object'
+        ? group?.restaurant?._id
+        : group?.restaurant;
+
+    if (!restaurantId || !token || mode !== 'dashboard') return;
+
+    const fetchMenu = async () => {
+      try {
+        setLoadingMenu(true);
+        // Try common menu routes (handles query param or nested route)
+        let res = await fetch(`${API}/menu-items?restaurant=${restaurantId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (!res.ok) {
+          res = await fetch(`${API}/restaurants/${restaurantId}/menu`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        }
+
+        const data = await res.json();
+        const items = Array.isArray(data) ? data : data.menuItems || data.items || [];
+        setMenuItems(items);
+      } catch (err) {
+        console.error('Failed to load menu items:', err);
+      } finally {
+        setLoadingMenu(false);
+      }
+    };
+
+    fetchMenu();
+  }, [group?.restaurant, token, mode]);
+
+  // ---------------------------------------------------------
+  // 3. LOAD & REFRESH GROUP DETAILS
   // ---------------------------------------------------------
   const loadGroup = useCallback(async (codeToLoad) => {
     const code = codeToLoad || groupCode;
@@ -86,7 +124,7 @@ function GroupOrder() {
     }
   }, [groupCode, token]);
 
-  // Auto-polling on dashboard
+  // Real-time polling every 4 seconds while inside the dashboard
   useEffect(() => {
     if (mode === 'dashboard' && groupCode) {
       loadGroup(groupCode);
@@ -98,13 +136,13 @@ function GroupOrder() {
   }, [mode, groupCode, loadGroup]);
 
   // ---------------------------------------------------------
-  // 3. CREATE GROUP (Sends chosen restaurant ID)
+  // 4. CREATE GROUP
   // ---------------------------------------------------------
   const createGroup = async () => {
     setMessage('');
 
     if (!selectedRestaurant) {
-      setMessage('Please select a restaurant from the list.');
+      setMessage('Please select a restaurant from the dropdown.');
       return;
     }
 
@@ -151,7 +189,7 @@ function GroupOrder() {
   };
 
   // ---------------------------------------------------------
-  // 4. JOIN GROUP
+  // 5. JOIN GROUP
   // ---------------------------------------------------------
   const joinGroup = async () => {
     setMessage('');
@@ -204,7 +242,39 @@ function GroupOrder() {
   };
 
   // ---------------------------------------------------------
-  // 5. HOME SCREEN
+  // 6. ADD ITEM TO GROUP ORDER
+  // ---------------------------------------------------------
+  const handleAddItem = async (menuItemId) => {
+    try {
+      setAddingItem(true);
+      const res = await fetch(`${API}/group-orders/${groupCode}/items`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          menuItemId,
+          quantity: 1
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to add item');
+      }
+
+      // Refresh data immediately
+      loadGroup(groupCode);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setAddingItem(false);
+    }
+  };
+
+  // ---------------------------------------------------------
+  // RENDER: HOME SCREEN
   // ---------------------------------------------------------
   if (mode === 'home') {
     return (
@@ -235,7 +305,6 @@ function GroupOrder() {
             <h2>Start a Group 🎉</h2>
             <p style={{ color: '#777', fontSize: '14px' }}>Choose a place and invite your friends.</p>
 
-            {/* RESTAURANT DROPDOWN */}
             <select
               value={selectedRestaurant}
               onChange={(e) => setSelectedRestaurant(e.target.value)}
@@ -261,7 +330,6 @@ function GroupOrder() {
               ))}
             </select>
 
-            {/* DELIVERY ADDRESS */}
             <textarea
               placeholder="Delivery address (e.g. Room 204, Block B)"
               value={address}
@@ -377,10 +445,10 @@ function GroupOrder() {
   }
 
   // ---------------------------------------------------------
-  // 6. DASHBOARD SCREEN
+  // RENDER: GROUP ROOM DASHBOARD
   // ---------------------------------------------------------
   return (
-    <main style={{ maxWidth: '800px', margin: '40px auto', padding: '0 20px', fontFamily: 'sans-serif' }}>
+    <main style={{ maxWidth: '850px', margin: '30px auto', padding: '0 20px', fontFamily: 'sans-serif' }}>
       <button
         onClick={() => setMode('home')}
         style={{
@@ -389,7 +457,8 @@ function GroupOrder() {
           color: '#ff5722',
           cursor: 'pointer',
           marginBottom: '15px',
-          fontWeight: 'bold'
+          fontWeight: 'bold',
+          fontSize: '15px'
         }}
       >
         ← Back to Create / Join
@@ -397,10 +466,10 @@ function GroupOrder() {
 
       <h1>Group Order Room</h1>
 
+      {/* CODE SHARE CARD */}
       <div
         style={{
           padding: '25px',
-          marginTop: '15px',
           borderRadius: '16px',
           background: '#fff7f2',
           border: '1px solid #ffd8c2',
@@ -408,7 +477,7 @@ function GroupOrder() {
         }}
       >
         <h3 style={{ margin: '0 0 10px 0' }}>Invite Your Friends</h3>
-        <p style={{ margin: 0, color: '#666' }}>Share this unique group code:</p>
+        <p style={{ margin: 0, color: '#666' }}>Share this code with your friends to let them join:</p>
         <div
           style={{
             fontSize: '36px',
@@ -439,7 +508,85 @@ function GroupOrder() {
         </button>
       </div>
 
-      <section style={{ marginTop: '30px' }}>
+      {/* RESTAURANT MENU DISHES */}
+      <section style={{ marginTop: '35px' }}>
+        <h2 style={{ marginBottom: '6px' }}>Add Items From The Menu 🍕</h2>
+        <p style={{ color: '#666', fontSize: '14px', margin: '0 0 15px 0' }}>
+          Select dishes to add to your personal share in this order.
+        </p>
+
+        {loadingMenu ? (
+          <p style={{ color: '#888' }}>Loading menu items...</p>
+        ) : menuItems.length > 0 ? (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+              gap: '16px'
+            }}
+          >
+            {menuItems.map((item) => (
+              <div
+                key={item._id}
+                style={{
+                  border: '1px solid #e0e0e0',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  background: '#fff',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  boxShadow: '0 2px 5px rgba(0,0,0,0.03)'
+                }}
+              >
+                <div>
+                  <h4 style={{ margin: '0 0 6px 0', fontSize: '16px' }}>{item.name}</h4>
+                  <div style={{ color: '#ff5722', fontWeight: 'bold', fontSize: '15px' }}>
+                    ₹{item.price}
+                  </div>
+                  {item.description && (
+                    <p style={{ color: '#777', fontSize: '12px', margin: '6px 0 0 0' }}>
+                      {item.description}
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => handleAddItem(item._id)}
+                  disabled={addingItem}
+                  style={{
+                    marginTop: '14px',
+                    padding: '8px 12px',
+                    backgroundColor: '#ff5722',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontWeight: 'bold',
+                    cursor: addingItem ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  + Add Item
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div
+            style={{
+              padding: '20px',
+              background: '#f9f9f9',
+              borderRadius: '8px',
+              color: '#888',
+              textAlign: 'center'
+            }}
+          >
+            No menu items found for this restaurant.
+          </div>
+        )}
+      </section>
+
+      {/* MEMBERS & SPLIT DETAILS */}
+      <section style={{ marginTop: '40px' }}>
         <h2>Group Members ({group?.groupMembers?.length || 0})</h2>
         {group?.groupMembers?.length ? (
           group.groupMembers.map((member, index) => (
@@ -448,59 +595,86 @@ function GroupOrder() {
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '15px 20px',
+                alignItems: 'flex-start',
+                padding: '16px 20px',
                 marginTop: '12px',
-                border: '1px solid #eee',
+                border: '1px solid #e0e0e0',
                 borderRadius: '12px',
                 background: '#fff'
               }}
             >
               <div>
-                <strong>{member.name || 'Member'}</strong>
-                <div style={{ color: '#777', fontSize: '13px', marginTop: '4px' }}>
-                  {member.items?.length || 0} item(s) selected
-                </div>
+                <strong style={{ fontSize: '16px' }}>{member.name || 'Member'}</strong>
+
+                {/* List individual items ordered by this member */}
+                {member.items && member.items.length > 0 ? (
+                  <ul
+                    style={{
+                      margin: '8px 0 0 0',
+                      paddingLeft: '20px',
+                      fontSize: '13px',
+                      color: '#444'
+                    }}
+                  >
+                    {member.items.map((it, i) => (
+                      <li key={i} style={{ marginBottom: '3px' }}>
+                        {it.name} × {it.quantity} (₹{it.price * it.quantity})
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div style={{ color: '#999', fontSize: '13px', marginTop: '6px' }}>
+                    No items selected yet
+                  </div>
+                )}
               </div>
 
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '16px' }}>₹{member.shareAmount || 0}</div>
-                <div style={{ fontSize: '13px', marginTop: '4px' }}>
-                  {member.paymentStatus === 'PAID'
-                    ? '✅ Paid'
-                    : member.paymentStatus === 'FAILED'
-                    ? '❌ Failed'
-                    : '⏳ Pending'}
+                <div style={{ fontWeight: 'bold', fontSize: '18px', color: '#222' }}>
+                  ₹{member.shareAmount || 0}
+                </div>
+                <div style={{ fontSize: '13px', marginTop: '6px' }}>
+                  {member.paymentStatus === 'PAID' ? (
+                    <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>✅ Paid</span>
+                  ) : member.paymentStatus === 'FAILED' ? (
+                    <span style={{ color: '#c62828', fontWeight: 'bold' }}>❌ Failed</span>
+                  ) : (
+                    <span style={{ color: '#ef6c00', fontWeight: 'bold' }}>⏳ Pending</span>
+                  )}
                 </div>
               </div>
             </div>
           ))
         ) : (
-          <p style={{ color: '#888' }}>No members found yet.</p>
+          <p style={{ color: '#888' }}>No members have joined yet.</p>
         )}
       </section>
 
+      {/* GRAND TOTAL SUMMARY */}
       <section
         style={{
-          marginTop: '30px',
+          marginTop: '35px',
           padding: '20px',
-          background: '#f9f9f9',
+          background: '#fafafa',
           borderRadius: '12px',
+          border: '1px solid #eee',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
         }}
       >
         <div>
-          <h2 style={{ margin: 0 }}>Total: ₹{group?.total || 0}</h2>
-          <p style={{ margin: '5px 0 0 0', color: '#666', fontSize: '14px' }}>
-            {group?.allMembersPaid ? '🎉 Everyone has paid!' : 'Waiting for members to settle their share...'}
+          <h2 style={{ margin: 0, fontSize: '22px' }}>Total Order: ₹{group?.total || 0}</h2>
+          <p style={{ margin: '6px 0 0 0', color: '#666', fontSize: '14px' }}>
+            {group?.allMembersPaid
+              ? '🎉 Everyone has paid! Ready to dispatch.'
+              : 'Waiting for everyone to select items and pay...'}
           </p>
         </div>
 
         <button
           style={{
-            padding: '10px 16px',
+            padding: '10px 18px',
             borderRadius: '8px',
             border: '1px solid #ccc',
             background: '#fff',
@@ -519,8 +693,8 @@ function GroupOrder() {
             marginTop: '20px',
             padding: '12px',
             borderRadius: '8px',
-            background: '#e8f5e9',
-            color: '#2e7d32',
+            background: message.includes('successfully') ? '#e8f5e9' : '#ffebee',
+            color: message.includes('successfully') ? '#2e7d32' : '#c62828',
             textAlign: 'center'
           }}
         >
