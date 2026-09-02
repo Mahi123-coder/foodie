@@ -8,6 +8,7 @@ import orderRoutes from './routes/orders.js';
 import adminRoutes from './routes/adminRoutes.js';
 import aiRoutes from './routes/ai.js';
 import paymentRoutes from './routes/payments.js';
+import groupOrdersRouter from './routes/groupOrders.js';
 
 
 // =============================================================
@@ -108,6 +109,8 @@ app.use(
   '/api/payments',
   paymentRoutes
 );
+app.use('/api/group-orders', 
+  groupOrdersRouter);
 
 // =============================================================
 // 404 HANDLER

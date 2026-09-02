@@ -122,7 +122,85 @@ razorpaySignature: {
   type: String,
   default: null
 },
+  // =========================================================
+  // GROUP ORDER
+  // =========================================================
 
+  isGroupOrder: {
+    type: Boolean,
+    default: false
+  },
+
+  // Unique code used to invite people
+  groupCode: {
+    type: String,
+    default: null
+  },
+
+  // People participating in the group order
+  groupMembers: [
+    {
+      user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      },
+
+      name: {
+        type: String
+      },
+
+      // Food items selected by this member
+      items: [
+        {
+          menuItem: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'MenuItem'
+          },
+
+          name: {
+            type: String
+          },
+
+          price: {
+            type: Number
+          },
+
+          quantity: {
+            type: Number
+          }
+        }
+      ],
+
+      // Amount this person has to pay
+      shareAmount: {
+        type: Number,
+        default: 0
+      },
+
+      // Individual payment status
+      paymentStatus: {
+        type: String,
+        enum: ['PENDING', 'PAID', 'FAILED'],
+        default: 'PENDING'
+      },
+
+      razorpayOrderId: {
+        type: String,
+        default: null
+      },
+
+      razorpayPaymentId: {
+        type: String,
+        default: null
+      }
+    }
+  ],
+
+  // Whether everyone has paid
+  allMembersPaid: {
+    type: Boolean,
+    default: false
+  },
 
   // =========================================================
   // DELIVERY ADDRESS
