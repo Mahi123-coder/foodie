@@ -2,6 +2,7 @@ import { Router } from 'express';
 import Restaurant from '../models/Restaurant.js';
 import MenuItem from '../models/MenuItem.js';
 
+
 const router = Router();
 
 router.get('/', async (req, res) => {
@@ -21,7 +22,6 @@ router.get('/:id', async (req, res) => {
     res.json({ restaurant, menu });
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
-import MenuItem from '../models/MenuItem.js';
 
 // GET /api/restaurants/:id/menu
 router.get('/:id/menu', async (req, res) => {
