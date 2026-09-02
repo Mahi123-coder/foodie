@@ -73,18 +73,18 @@ function GroupOrder() {
     const fetchMenu = async () => {
       try {
         setLoadingMenu(true);
-        // Try common menu routes (handles query param or nested route)
-        let res = await fetch(`${API}/menu-items?restaurant=${restaurantId}`, {
-          headers: { Authorization: `Bearer ${token}` }
+        const res = await fetch(`${API}/restaurants/${restaurantId}/menu`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
         });
 
+        const data = await res.json();
+
         if (!res.ok) {
-          res = await fetch(`${API}/restaurants/${restaurantId}/menu`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
+          throw new Error(data.message || 'Could not load menu');
         }
 
-        const data = await res.json();
         const items = Array.isArray(data) ? data : data.menuItems || data.items || [];
         setMenuItems(items);
       } catch (err) {
