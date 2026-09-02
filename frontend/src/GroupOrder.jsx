@@ -60,15 +60,17 @@ function GroupOrder() {
   }, [token, navigate]);
 
   // ---------------------------------------------------------
-  // 2. FETCH MENU FOR THE GROUP'S RESTAURANT
+  // 2. FETCH MENU FOR THE GROUP'S RESTAURANT (Runs only once)
   // ---------------------------------------------------------
-  useEffect(() => {
-    const restaurantId =
-      typeof group?.restaurant === 'object'
-        ? group?.restaurant?._id
-        : group?.restaurant;
+  // Extract primitive string ID so object references don't re-trigger it
+  const restaurantId =
+    typeof group?.restaurant === 'object'
+      ? group?.restaurant?._id?.toString()
+      : group?.restaurant?.toString();
 
-    if (!restaurantId || !token || mode !== 'dashboard') return;
+  useEffect(() => {
+    // Only fetch if we have an ID and haven't loaded items yet
+    if (!restaurantId || !token || mode !== 'dashboard' || menuItems.length > 0) return;
 
     const fetchMenu = async () => {
       try {
@@ -95,7 +97,7 @@ function GroupOrder() {
     };
 
     fetchMenu();
-  }, [group?.restaurant, token, mode]);
+  }, [restaurantId, token, mode, menuItems.length]);
 
   // ---------------------------------------------------------
   // 3. LOAD & REFRESH GROUP DETAILS
