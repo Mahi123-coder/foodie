@@ -1,6 +1,7 @@
 import express from 'express';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
+import Razorpay from 'razorpay';
 
 import Order from '../models/Order.js';
 import MenuItem from '../models/MenuItem.js';
@@ -8,7 +9,13 @@ import { auth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Apply auth middleware to all group order routes
+// Initialize Razorpay Instance
+const razorpayInstance = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET
+});
+
+// Protect all group order routes with authentication
 router.use(auth);
 
 // =========================================================
@@ -98,7 +105,7 @@ router.get('/:groupCode', async (req, res) => {
 });
 
 // =========================================================
-// JOIN GROUP ORDER (Allows Re-entry)
+// JOIN GROUP ORDER (With Safe Re-entry)
 // =========================================================
 router.post('/:groupCode/join', async (req, res) => {
   try {
@@ -234,11 +241,11 @@ router.post('/:groupCode/items', async (req, res) => {
     }
 
     order.total = order.groupMembers.reduce((sum, m) => {
-      const memberSum = m.items.reduce(
+      const memberTotal = m.items.reduce(
         (iSum, item) => iSum + Number(item.price) * Number(item.quantity),
         0
       );
-      return sum + memberSum;
+      return sum + memberTotal;
     }, 0);
 
     if (order.splitMode === 'EQUAL' && order.groupMembers.length > 0) {
@@ -275,7 +282,7 @@ router.post('/:groupCode/items', async (req, res) => {
 });
 
 // =========================================================
-// TOGGLE SPLIT MODE ('ITEMIZED' vs 'EQUAL')
+// TOGGLE SPLIT MODE
 // =========================================================
 router.post('/:groupCode/split-mode', async (req, res) => {
   try {
@@ -295,7 +302,6 @@ router.post('/:groupCode/split-mode', async (req, res) => {
     }
 
     order.splitMode = splitMode;
-
     const memberCount = order.groupMembers.length;
 
     if (splitMode === 'EQUAL' && memberCount > 0) {
@@ -317,6 +323,115 @@ router.post('/:groupCode/split-mode', async (req, res) => {
   } catch (error) {
     console.error('Split mode update error:', error);
     return res.status(500).json({ message: 'Failed to update split mode' });
+  }
+});
+
+// =========================================================
+// 1. CREATE RAZORPAY ORDER FOR MEMBER SHARE
+// =========================================================
+router.post('/:groupCode/create-razorpay-order', async (req, res) => {
+  try {
+    const userId = req.user.id || req.user._id;
+
+    const order = await Order.findOne({
+      groupCode: req.params.groupCode.toUpperCase(),
+      isGroupOrder: true
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: 'Group order not found' });
+    }
+
+    const member = order.groupMembers.find(
+      (m) => m.user && (m.user._id || m.user).toString() === userId.toString()
+    );
+
+    if (!member) {
+      return res.status(404).json({ message: 'Member not found in this group' });
+    }
+
+    if (member.shareAmount <= 0) {
+      return res.status(400).json({ message: 'No payable balance found' });
+    }
+
+    const razorpayOrder = await razorpayInstance.orders.create({
+      amount: Math.round(member.shareAmount * 100),
+      currency: 'INR',
+      receipt: `grp_${order.groupCode}_${userId.toString().slice(-4)}`
+    });
+
+    member.razorpayOrderId = razorpayOrder.id;
+    await order.save();
+
+    return res.json({
+      orderId: razorpayOrder.id,
+      amount: razorpayOrder.amount,
+      currency: razorpayOrder.currency,
+      keyId: process.env.RAZORPAY_KEY_ID
+    });
+  } catch (error) {
+    console.error('Razorpay create order error:', error);
+    return res.status(500).json({ message: 'Failed to create payment order' });
+  }
+});
+
+// =========================================================
+// 2. VERIFY RAZORPAY PAYMENT & MARK AS PAID
+// =========================================================
+router.post('/:groupCode/verify-payment', async (req, res) => {
+  try {
+    const userId = req.user.id || req.user._id;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+    const body = `${razorpay_order_id}|${razorpay_payment_id}`;
+    const expectedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(body)
+      .digest('hex');
+
+    if (expectedSignature !== razorpay_signature) {
+      return res.status(400).json({ message: 'Invalid payment signature' });
+    }
+
+    const order = await Order.findOne({
+      groupCode: req.params.groupCode.toUpperCase(),
+      isGroupOrder: true
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: 'Group order not found' });
+    }
+
+    const member = order.groupMembers.find(
+      (m) => m.user && (m.user._id || m.user).toString() === userId.toString()
+    );
+
+    if (!member) {
+      return res.status(404).json({ message: 'Member not found' });
+    }
+
+    member.paymentStatus = 'PAID';
+    member.razorpayPaymentId = razorpay_payment_id;
+
+    const allPaid = order.groupMembers
+      .filter((m) => m.shareAmount > 0)
+      .every((m) => m.paymentStatus === 'PAID');
+
+    order.allMembersPaid = allPaid;
+    if (allPaid) {
+      order.paymentStatus = 'PAID';
+      order.status = 'CONFIRMED';
+    }
+
+    await order.save();
+
+    return res.json({
+      message: 'Payment verified and marked as PAID! 🎉',
+      order
+    });
+  } catch (error) {
+    console.error('Verify payment error:', error);
+    return res.status(500).json({ message: 'Payment verification failed' });
   }
 });
 
@@ -365,60 +480,6 @@ router.get('/:groupCode/share/:userId', async (req, res) => {
     return res.status(500).json({
       message: 'Failed to get member share'
     });
-  }
-});
-
-// =========================================================
-// PAY MEMBER SHARE
-// =========================================================
-router.post('/:groupCode/pay', async (req, res) => {
-  try {
-    const userId = req.user.id || req.user._id;
-
-    const order = await Order.findOne({
-      groupCode: req.params.groupCode.toUpperCase(),
-      isGroupOrder: true
-    });
-
-    if (!order) {
-      return res.status(404).json({ message: 'Group order not found' });
-    }
-
-    const member = order.groupMembers.find(
-      (m) => m.user && (m.user._id || m.user).toString() === userId.toString()
-    );
-
-    if (!member) {
-      return res.status(404).json({ message: 'Member not found in this group' });
-    }
-
-    if (member.shareAmount <= 0) {
-      return res.status(400).json({ message: 'No payable balance found.' });
-    }
-
-    member.paymentStatus = 'PAID';
-
-    const allPaid = order.groupMembers
-      .filter((m) => m.shareAmount > 0)
-      .every((m) => m.paymentStatus === 'PAID');
-
-    order.allMembersPaid = allPaid;
-    if (allPaid) {
-      order.paymentStatus = 'PAID';
-      order.status = 'CONFIRMED';
-    }
-
-    await order.save();
-
-    return res.json({
-      message: 'Payment completed successfully',
-      member,
-      allMembersPaid: order.allMembersPaid,
-      order
-    });
-  } catch (error) {
-    console.error('Group pay error:', error);
-    return res.status(500).json({ message: 'Payment processing failed' });
   }
 });
 

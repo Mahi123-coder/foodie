@@ -30,7 +30,7 @@ function GroupOrder() {
 
   const token = localStorage.getItem('token');
 
-  // Decode user ID safely from JWT token to support both Host and Joined Member
+  // Decode user ID safely across various JWT payload formats
   const getLoggedInUserId = () => {
     if (!token) return null;
     try {
@@ -76,7 +76,7 @@ function GroupOrder() {
   }, [token, navigate]);
 
   // ---------------------------------------------------------
-  // 2. FETCH MENU (Fixed to avoid polling flickers)
+  // 2. FETCH MENU (Locks once loaded to stop polling flickers)
   // ---------------------------------------------------------
   const restaurantId =
     typeof group?.restaurant === 'object'
@@ -85,7 +85,6 @@ function GroupOrder() {
 
   useEffect(() => {
     if (!restaurantId || !token || mode !== 'dashboard') return;
-
     if (menuItems.length > 0) return;
 
     const fetchMenu = async () => {
@@ -129,7 +128,6 @@ function GroupOrder() {
       });
 
       const data = await response.json();
-
       if (!response.ok) {
         throw new Error(data.message || 'Could not load group');
       }
@@ -228,7 +226,7 @@ function GroupOrder() {
   };
 
   // ---------------------------------------------------------
-  // 6. JOIN GROUP (Handles re-entry smoothly)
+  // 6. JOIN GROUP (Handles Re-entry)
   // ---------------------------------------------------------
   const joinGroup = async () => {
     setMessage('');
@@ -307,12 +305,18 @@ function GroupOrder() {
   };
 
   // ---------------------------------------------------------
-  // 8. PAY MEMBER SHARE
+  // 8. OPEN RAZORPAY MODAL FOR CURRENT MEMBER SHARE
   // ---------------------------------------------------------
   const handlePayShare = async () => {
+    if (!window.Razorpay) {
+      alert('Razorpay SDK failed to load. Make sure the checkout script is in index.html.');
+      return;
+    }
+
     try {
       setPaying(true);
-      const res = await fetch(`${API}/group-orders/${groupCode}/pay`, {
+
+      const res = await fetch(`${API}/group-orders/${groupCode}/create-razorpay-order`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -320,13 +324,53 @@ function GroupOrder() {
         }
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || 'Payment failed');
-      }
+      const orderData = await res.json();
+      if (!res.ok) throw new Error(orderData.message || 'Failed to create payment order');
 
-      setMessage('Your split share has been paid successfully! 💳');
-      loadGroup(groupCode);
+      const options = {
+        key: orderData.keyId,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'Foodie Group Order',
+        description: `Group Share for Room ${groupCode}`,
+        order_id: orderData.orderId,
+        handler: async (response) => {
+          try {
+            const verifyRes = await fetch(`${API}/group-orders/${groupCode}/verify-payment`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature
+              })
+            });
+
+            const verifyData = await verifyRes.json();
+            if (!verifyRes.ok) throw new Error(verifyData.message || 'Payment signature check failed');
+
+            setMessage('Payment verified successfully! 🎉');
+            loadGroup(groupCode);
+          } catch (err) {
+            alert(err.message);
+          }
+        },
+        prefill: {
+          name: myMemberRecord?.name || 'Member'
+        },
+        theme: {
+          color: '#ff5722'
+        },
+        modal: {
+          ondismiss: () => setPaying(false)
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
     } catch (err) {
       alert(err.message);
     } finally {
@@ -334,7 +378,7 @@ function GroupOrder() {
     }
   };
 
-  // Identify current member record
+  // Find the logged-in member record
   const myMemberRecord = group?.groupMembers?.find((m) => {
     const memberId = m.user?._id || m.user;
     return memberId && currentUserId && memberId.toString() === currentUserId.toString();
@@ -773,7 +817,7 @@ function GroupOrder() {
                     )}
                   </div>
 
-                  {/* DIRECT PAY BUTTON FOR THIS MEMBER */}
+                  {/* DIRECT PAY BUTTON FOR CURRENT MEMBER */}
                   {isMe && member.paymentStatus !== 'PAID' && (
                     <button
                       onClick={handlePayShare}
@@ -790,7 +834,7 @@ function GroupOrder() {
                         cursor: paying || (member.shareAmount || 0) <= 0 ? 'not-allowed' : 'pointer'
                       }}
                     >
-                      {paying ? 'Paying...' : `Pay ₹${member.shareAmount || 0} 💳`}
+                      {paying ? 'Opening Razorpay...' : `Pay ₹${member.shareAmount || 0} 💳`}
                     </button>
                   )}
                 </div>
@@ -843,7 +887,7 @@ function GroupOrder() {
               }}
             >
               {paying
-                ? 'Processing...'
+                ? 'Opening Razorpay...'
                 : myShareAmount > 0
                 ? `Pay My Share (₹${myShareAmount}) 💳`
                 : 'Add Items to Pay'}
