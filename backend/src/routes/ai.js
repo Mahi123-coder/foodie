@@ -9,6 +9,60 @@ import Order from '../models/Order.js';
 const router = Router();
 
 // =============================================================
+// GEMINI CONNECTION TEST
+// GET /api/ai/test
+// =============================================================
+
+router.get('/test', async (req, res) => {
+  const started = Date.now();
+
+  try {
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
+
+    if (!apiKey) {
+      return res.status(500).json({
+        ok: false,
+        error: 'GEMINI_API_KEY is missing on the backend'
+      });
+    }
+
+    console.log('🧪 Testing Gemini connection...');
+
+    const ai = new GoogleGenAI({
+      apiKey
+    });
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: 'Reply with exactly: GEMINI_OK'
+    });
+
+    console.log('✅ Gemini connection successful');
+
+    return res.json({
+      ok: true,
+      text: response.text,
+      ms: Date.now() - started
+    });
+
+  } catch (error) {
+    console.error('========== GEMINI TEST ERROR ==========');
+    console.error(error);
+    console.error('========================================');
+
+    return res.status(500).json({
+      ok: false,
+      error: error?.message || String(error),
+      name: error?.name || null,
+      cause: error?.cause
+        ? String(error.cause)
+        : null,
+      ms: Date.now() - started
+    });
+  }
+});
+
+// =============================================================
 // CONFIG
 // =============================================================
 
