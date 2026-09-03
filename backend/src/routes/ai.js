@@ -12,7 +12,7 @@ const router = Router();
 // CONFIG
 // =============================================================
 
-const GEMINI_MODEL = 'gemini-3.6-flash';
+const GEMINI_MODEL = 'gemini-2.5-flash';
 
 // =============================================================
 // GEMINI AI CLIENT
@@ -660,9 +660,6 @@ Return JSON only matching the schema.
           required: ['recommendations', 'message'],
         },
         maxOutputTokens: 2000,
-        thinkingConfig: {
-          thinkingBudget: 0,
-        },
       },
     });
 
