@@ -26,37 +26,60 @@ router.get('/test', async (req, res) => {
       });
     }
 
-    console.log('🧪 Testing Gemini connection...');
+    const ai = new GoogleGenAI({ apiKey });
 
-    const ai = new GoogleGenAI({
-      apiKey
-    });
+    const modelsToTry = [
+      'gemini-3.8-flash',
+      'gemini-3.7-flash',
+      'gemini-3.6-flash'
+    ];
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: 'Reply with exactly: GEMINI_OK'
-    });
+    const results = [];
 
-    console.log('✅ Gemini connection successful');
+    for (const model of modelsToTry) {
+      try {
+        console.log(`🧪 Testing ${model}...`);
 
-    return res.json({
-      ok: true,
-      text: response.text,
+        const response = await ai.models.generateContent({
+          model,
+          contents: 'Reply with exactly: GEMINI_OK'
+        });
+
+        console.log(`✅ ${model} works`);
+
+        return res.json({
+          ok: true,
+          workingModel: model,
+          text: response.text,
+          ms: Date.now() - started,
+          tested: results
+        });
+
+      } catch (error) {
+        console.error(`❌ ${model} failed:`, error.message);
+
+        results.push({
+          model,
+          error: error.message
+        });
+      }
+    }
+
+    return res.status(503).json({
+      ok: false,
+      message: 'No tested Gemini model is currently available.',
+      results,
       ms: Date.now() - started
     });
 
   } catch (error) {
-    console.error('========== GEMINI TEST ERROR ==========');
-    console.error(error);
-    console.error('========================================');
+    console.error('Gemini model test error:', error);
 
     return res.status(500).json({
       ok: false,
       error: error?.message || String(error),
       name: error?.name || null,
-      cause: error?.cause
-        ? String(error.cause)
-        : null,
+      cause: error?.cause ? String(error.cause) : null,
       ms: Date.now() - started
     });
   }
