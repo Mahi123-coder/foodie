@@ -255,6 +255,7 @@ function GroupOrder() {
     }
   };
 
+  // ADD ITEM FIX: Strictly adds 1 quantity per click
   const handleAddItem = async (menuItemId) => {
     try {
       setAddingItem(true);
@@ -270,7 +271,7 @@ function GroupOrder() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to add item');
 
-      loadGroup(groupCode);
+      await loadGroup(groupCode);
     } catch (err) {
       alert(err.message);
     } finally {
@@ -327,18 +328,20 @@ function GroupOrder() {
     }
   };
 
+  // POPULATE FIX: Adds items strictly once and refreshes state
   const approveAndAddToGroupOrder = async () => {
     if (!planResult || !groupCode) return;
 
     try {
-      setMessage('Validating dishes with MongoDB & adding to group order... ⏳');
+      setMessage('Adding recommended items to group order... ⏳');
 
       const itemsToAdd = [
-        ...planResult.memberRecommendations.map(m => ({ menuItemId: m.itemId, quantity: 1 })),
-        ...planResult.sharedSuggestions.map(s => ({ menuItemId: s.itemId, quantity: 1 }))
+        ...(planResult.memberRecommendations || []).map(m => ({ menuItemId: m.itemId, quantity: 1 })),
+        ...(planResult.sharedSuggestions || []).map(s => ({ menuItemId: s.itemId, quantity: 1 }))
       ];
 
       for (const item of itemsToAdd) {
+        if (!item.menuItemId) continue;
         await fetch(`${API}/group-orders/${groupCode}/items`, {
           method: 'POST',
           headers: {
@@ -351,7 +354,7 @@ function GroupOrder() {
 
       setMessage('Group order populated successfully with recommended items! 🎉');
       setPlanResult(null);
-      loadGroup(groupCode);
+      await loadGroup(groupCode);
     } catch (error) {
       console.error('Add to group order error:', error);
       setMessage('Failed to add items to group order.');
@@ -431,7 +434,6 @@ function GroupOrder() {
   const myShareAmount = myMemberRecord?.shareAmount || 0;
   const isMySharePaid = myMemberRecord?.paymentStatus === 'PAID';
 
-  // Helper function to resolve real menu item images or fall back to clean placeholders
   const getItemDetails = (itemId) => {
     const matched = menuItems.find((it) => it._id?.toString() === itemId?.toString());
     return {
@@ -555,7 +557,7 @@ function GroupOrder() {
         </button>
       </div>
 
-      {/* PROMINENT AI GROUP ORDER PLANNER INTEGRATION (MODERN TWO-COLUMN GRID) */}
+      {/* PROMINENT AI GROUP ORDER PLANNER INTEGRATION */}
       <section
         style={{
           background: '#f4fbf7',
@@ -758,7 +760,7 @@ function GroupOrder() {
                       })}
                     </div>
 
-                    {/* WHY THIS WORKS (POLISHED LIGHT GREEN CARD) */}
+                    {/* WHY THIS WORKS */}
                     <div style={{ background: '#e8f5e9', border: '1px solid #c8e6c9', padding: '14px 16px', borderRadius: '12px', marginBottom: '18px' }}>
                       <div style={{ fontWeight: 'bold', color: '#1b5e20', fontSize: '14px', marginBottom: '8px' }}>
                         Why this works
