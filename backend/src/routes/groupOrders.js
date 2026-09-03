@@ -282,6 +282,70 @@ router.post('/:groupCode/items', async (req, res) => {
 });
 
 // =========================================================
+// CLEAR LOGGED-IN MEMBER ITEMS FROM GROUP ORDER
+// =========================================================
+router.post('/:groupCode/clear-my-items', async (req, res) => {
+  try {
+    const userId = req.user.id || req.user._id;
+
+    const order = await Order.findOne({
+      groupCode: req.params.groupCode.toUpperCase(),
+      isGroupOrder: true
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: 'Group order room not found' });
+    }
+
+    const member = order.groupMembers.find(
+      (m) => m.user && (m.user._id || m.user).toString() === userId.toString()
+    );
+
+    if (!member) {
+      return res.status(400).json({ message: 'Member not found in group' });
+    }
+
+    // Clear items and reset share amount
+    member.items = [];
+    member.shareAmount = 0;
+
+    // Recalculate group order total
+    order.total = order.groupMembers.reduce((sum, m) => {
+      const memberTotal = m.items.reduce(
+        (iSum, item) => iSum + Number(item.price) * Number(item.quantity),
+        0
+      );
+      return sum + memberTotal;
+    }, 0);
+
+    // Recalculate member shares based on current split mode
+    if (order.splitMode === 'EQUAL' && order.groupMembers.length > 0) {
+      const equalShare = Math.round(order.total / order.groupMembers.length);
+      order.groupMembers.forEach((m) => {
+        m.shareAmount = equalShare;
+      });
+    } else {
+      order.groupMembers.forEach((m) => {
+        m.shareAmount = m.items.reduce(
+          (iSum, item) => iSum + Number(item.price) * Number(item.quantity),
+          0
+        );
+      });
+    }
+
+    await order.save();
+
+    return res.json({
+      message: 'Cleared items successfully',
+      order
+    });
+  } catch (error) {
+    console.error('Clear items error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to clear items' });
+  }
+});
+
+// =========================================================
 // TOGGLE SPLIT MODE
 // =========================================================
 router.post('/:groupCode/split-mode', async (req, res) => {
