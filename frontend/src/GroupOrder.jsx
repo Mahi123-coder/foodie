@@ -340,19 +340,38 @@ function GroupOrder() {
    * FIX: Filter items so that ONLY recommendations matching the currently logged-in
    * user's member identity are added to their cart share. Shared add-ons are posted once.
    */
+  /**
+   * FIX: Populates only the logged-in user's recommended item.
+   * Handles "Host" vs explicit member names ("Agrani") smoothly.
+   */
   const approveAndAddToGroupOrder = async () => {
     if (!planResult || !groupCode) return;
 
     try {
       setMessage('Adding your recommended items to your share... ⏳');
 
-      const myCurrentName = (myMemberRecord?.name || name || 'Agrani').trim().toLowerCase();
+      const myCurrentName = (myMemberRecord?.name || name || '').trim().toLowerCase();
+      const memberRecs = planResult.memberRecommendations || [];
 
-      // 1. Identify member recommendations assigned specifically to this user
-      const myRecommendations = (planResult.memberRecommendations || []).filter((rec) => {
+      // 1. Find recommendations belonging to the current user
+      let myRecommendations = memberRecs.filter((rec) => {
         const recName = (rec.memberName || '').trim().toLowerCase();
-        return recName === myCurrentName || recName === 'host' || recName === 'you';
+        if (!recName) return false;
+        
+        // Exact name match (e.g. Agrani === Agrani)
+        if (myCurrentName && recName === myCurrentName) return true;
+        
+        // Generic alias matches
+        if (recName === 'host' || recName === 'you' || myCurrentName === 'host') return true;
+
+        return false;
       });
+
+      // Fallback: If no exact string match was found (e.g., room member is "Host" while AI plan used "Agrani"),
+      // take the 1st recommendation in the array for the host.
+      if (myRecommendations.length === 0 && memberRecs.length > 0) {
+        myRecommendations = [memberRecs[0]];
+      }
 
       // 2. Combine with shared group add-ons
       const sharedItems = planResult.sharedSuggestions || [];
@@ -363,10 +382,11 @@ function GroupOrder() {
       ];
 
       if (itemsToAdd.length === 0) {
-        setMessage(`No recommendations found matching your name ("${myMemberRecord?.name || 'You'}"). Ask other members to join and add their share!`);
+        setMessage('No recommendations found for your share.');
         return;
       }
 
+      // 3. Post strictly 1 quantity of your item to your share
       for (const item of itemsToAdd) {
         if (!item.menuItemId) continue;
         await fetch(`${API}/group-orders/${groupCode}/items`, {
