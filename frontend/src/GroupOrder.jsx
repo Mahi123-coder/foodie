@@ -43,7 +43,7 @@ function GroupOrder() {
   const [totalBudget, setTotalBudget] = useState(1500);
   const [memberPrefs, setMemberPrefs] = useState([
     { name: 'Agrani', foodPreference: 'Vegetarian', spicePreference: 'Spicy', cravings: 'Paneer', personalBudget: 400 },
-    { name: 'Friend 1', foodPreference: 'Non-vegetarian', spicePreference: 'Medium', cravings: 'Biryani', personalBudget: 500 }
+    { name: 'aarav', foodPreference: 'Non-vegetarian', spicePreference: 'Medium', cravings: 'Biryani', personalBudget: 500 }
   ]);
   const [aiLoading, setAiLoading] = useState(false);
   const [planResult, setPlanResult] = useState(null);
@@ -255,7 +255,6 @@ function GroupOrder() {
     }
   };
 
-  // ADD ITEM FIX: Strictly adds 1 quantity per click
   const handleAddItem = async (menuItemId) => {
     try {
       setAddingItem(true);
@@ -328,17 +327,45 @@ function GroupOrder() {
     }
   };
 
-  // POPULATE FIX: Adds items strictly once and refreshes state
+  // Find record for current logged in user in groupMembers
+  const myMemberRecord = group?.groupMembers?.find((m) => {
+    const memberId = m.user?._id || m.user;
+    return memberId && currentUserId && memberId.toString() === currentUserId.toString();
+  });
+
+  const myShareAmount = myMemberRecord?.shareAmount || 0;
+  const isMySharePaid = myMemberRecord?.paymentStatus === 'PAID';
+
+  /**
+   * FIX: Filter items so that ONLY recommendations matching the currently logged-in
+   * user's member identity are added to their cart share. Shared add-ons are posted once.
+   */
   const approveAndAddToGroupOrder = async () => {
     if (!planResult || !groupCode) return;
 
     try {
-      setMessage('Adding recommended items to group order... ⏳');
+      setMessage('Adding your recommended items to your share... ⏳');
+
+      const myCurrentName = (myMemberRecord?.name || name || 'Agrani').trim().toLowerCase();
+
+      // 1. Identify member recommendations assigned specifically to this user
+      const myRecommendations = (planResult.memberRecommendations || []).filter((rec) => {
+        const recName = (rec.memberName || '').trim().toLowerCase();
+        return recName === myCurrentName || recName === 'host' || recName === 'you';
+      });
+
+      // 2. Combine with shared group add-ons
+      const sharedItems = planResult.sharedSuggestions || [];
 
       const itemsToAdd = [
-        ...(planResult.memberRecommendations || []).map(m => ({ menuItemId: m.itemId, quantity: 1 })),
-        ...(planResult.sharedSuggestions || []).map(s => ({ menuItemId: s.itemId, quantity: 1 }))
+        ...myRecommendations.map((m) => ({ menuItemId: m.itemId, quantity: 1 })),
+        ...sharedItems.map((s) => ({ menuItemId: s.itemId, quantity: 1 }))
       ];
+
+      if (itemsToAdd.length === 0) {
+        setMessage(`No recommendations found matching your name ("${myMemberRecord?.name || 'You'}"). Ask other members to join and add their share!`);
+        return;
+      }
 
       for (const item of itemsToAdd) {
         if (!item.menuItemId) continue;
@@ -352,8 +379,7 @@ function GroupOrder() {
         });
       }
 
-      setMessage('Group order populated successfully with recommended items! 🎉');
-      setPlanResult(null);
+      setMessage('Your recommended items have been added to your share! 🎉');
       await loadGroup(groupCode);
     } catch (error) {
       console.error('Add to group order error:', error);
@@ -425,14 +451,6 @@ function GroupOrder() {
       setPaying(false);
     }
   };
-
-  const myMemberRecord = group?.groupMembers?.find((m) => {
-    const memberId = m.user?._id || m.user;
-    return memberId && currentUserId && memberId.toString() === currentUserId.toString();
-  });
-
-  const myShareAmount = myMemberRecord?.shareAmount || 0;
-  const isMySharePaid = myMemberRecord?.paymentStatus === 'PAID';
 
   const getItemDetails = (itemId) => {
     const matched = menuItems.find((it) => it._id?.toString() === itemId?.toString());
@@ -694,6 +712,9 @@ function GroupOrder() {
                           ? 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop'
                           : 'https://images.unsplash.com/photo-1588168333986-5078d3ae3976?w=500&auto=format&fit=crop';
 
+                        // Check if this recommended member has actually joined the room yet
+                        const isJoined = group?.groupMembers?.some((gm) => gm.name?.trim().toLowerCase() === rec.memberName?.trim().toLowerCase());
+
                         return (
                           <div key={idx} style={{ border: '1px solid #e0e0e0', borderRadius: '12px', overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column', boxShadow: '0 2px 6px rgba(0,0,0,0.04)' }}>
                             <div style={{ position: 'relative', width: '100%', height: '140px', backgroundColor: '#f0f0f0' }}>
@@ -706,8 +727,8 @@ function GroupOrder() {
                               <span style={{ position: 'absolute', top: '8px', left: '8px', background: 'rgba(255,255,255,0.95)', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
                                 {rec.isVeg ? '🟢 Veg' : '🔴 Non-Veg'}
                               </span>
-                              <span style={{ position: 'absolute', bottom: '8px', right: '8px', background: 'rgba(0,0,0,0.75)', color: '#fff', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
-                                👤 {rec.memberName}
+                              <span style={{ position: 'absolute', bottom: '8px', right: '8px', background: isJoined ? '#2e7d32' : 'rgba(0,0,0,0.75)', color: '#fff', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                                👤 {rec.memberName} {isJoined ? ' (Joined)' : ' (Pending)'}
                               </span>
                             </div>
 
@@ -777,7 +798,7 @@ function GroupOrder() {
                       onClick={approveAndAddToGroupOrder}
                       style={{ width: '100%', padding: '14px', background: '#ff5722', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '15px', boxShadow: '0 4px 12px rgba(255, 87, 34, 0.25)' }}
                     >
-                      ✨ Add Recommended Items to Group Order (Total: ₹{planResult.totalSpent})
+                      ✨ Add My Recommended Items to My Share
                     </button>
                   </div>
                 ) : (
