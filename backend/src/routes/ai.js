@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { Router } from 'express';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI } from '@google/genai';
 
 import Restaurant from '../models/Restaurant.js';
 import MenuItem from '../models/MenuItem.js';
@@ -245,7 +245,6 @@ async function toolInspectAndOptimizeCart({ cartItems }) {
   let savings = 0;
   const modifications = [];
 
-  // Dynamic threshold: 10% bundle savings if order >= ₹600
   if (realTotal >= 600) {
     savings = Math.round(realTotal * 0.1);
     modifications.push({
@@ -290,7 +289,6 @@ async function toolGenerateGroupMealPlan({ totalPeople, vegCount, maxBudget, res
   const proposedItems = [];
   let allocatedTotal = 0;
 
-  // Allocate vegetarian portions
   if (veg > 0) {
     const targetVegSpend = (budget / people) * veg;
     let vegSpend = 0;
@@ -311,7 +309,6 @@ async function toolGenerateGroupMealPlan({ totalPeople, vegCount, maxBudget, res
     }
   }
 
-  // Allocate non-veg portions
   if (nonVeg > 0) {
     const targetNonVegSpend = budget - allocatedTotal;
     let nonVegSpend = 0;
@@ -344,7 +341,7 @@ async function toolGenerateGroupMealPlan({ totalPeople, vegCount, maxBudget, res
   };
 }
 
-// Tool definitions for Gemini Agent
+// Tool definitions for Gemini Agent using standard JSON schema objects
 const agentTools = [
   {
     functionDeclarations: [
@@ -352,12 +349,12 @@ const agentTools = [
         name: 'searchCatalog',
         description: 'Search available menu items across partner restaurants matching cuisine, spice, budget, or name.',
         parameters: {
-          type: Type.OBJECT,
+          type: 'OBJECT',
           properties: {
-            query: { type: Type.STRING, description: 'Search keywords like spicy, pizza, burger, biryani' },
-            maxPrice: { type: Type.NUMBER, description: 'Maximum price threshold per dish in INR' },
-            isVeg: { type: Type.BOOLEAN, description: 'True for purely vegetarian items' },
-            restaurantId: { type: Type.STRING, description: 'Optional specific restaurant ID' }
+            query: { type: 'STRING', description: 'Search keywords like spicy, pizza, burger, biryani' },
+            maxPrice: { type: 'NUMBER', description: 'Maximum price threshold per dish in INR' },
+            isVeg: { type: 'BOOLEAN', description: 'True for purely vegetarian items' },
+            restaurantId: { type: 'STRING', description: 'Optional specific restaurant ID' }
           }
         }
       },
@@ -365,17 +362,17 @@ const agentTools = [
         name: 'inspectAndOptimizeCart',
         description: 'Analyze current cart items for bundle discounts, redundant items, and cost optimization.',
         parameters: {
-          type: Type.OBJECT,
+          type: 'OBJECT',
           properties: {
             cartItems: {
-              type: Type.ARRAY,
+              type: 'ARRAY',
               items: {
-                type: Type.OBJECT,
+                type: 'OBJECT',
                 properties: {
-                  menuItem: { type: Type.STRING },
-                  name: { type: Type.STRING },
-                  price: { type: Type.NUMBER },
-                  quantity: { type: Type.NUMBER }
+                  menuItem: { type: 'STRING' },
+                  name: { type: 'STRING' },
+                  price: { type: 'NUMBER' },
+                  quantity: { type: 'NUMBER' }
                 }
               },
               description: 'List of items currently in cart'
@@ -388,12 +385,12 @@ const agentTools = [
         name: 'generateGroupMealPlan',
         description: 'Construct a group order combination adhering to group size, vegetarian dietary constraints, and total budget.',
         parameters: {
-          type: Type.OBJECT,
+          type: 'OBJECT',
           properties: {
-            totalPeople: { type: Type.NUMBER, description: 'Total number of members ordering' },
-            vegCount: { type: Type.NUMBER, description: 'Number of strict vegetarians in group' },
-            maxBudget: { type: Type.NUMBER, description: 'Hard total budget in INR' },
-            restaurantId: { type: Type.STRING, description: 'Optional target restaurant ID' }
+            totalPeople: { type: 'NUMBER', description: 'Total number of members ordering' },
+            vegCount: { type: 'NUMBER', description: 'Number of strict vegetarians in group' },
+            maxBudget: { type: 'NUMBER', description: 'Hard total budget in INR' },
+            restaurantId: { type: 'STRING', description: 'Optional target restaurant ID' }
           },
           required: ['totalPeople', 'maxBudget']
         }
@@ -403,7 +400,7 @@ const agentTools = [
 ];
 
 // =============================================================
-// AI GROUP ORDER PLANNER (TRACK 01 BUILDATHON)
+// AI GROUP ORDER PLANNER
 // POST /api/ai/group-planner
 // =============================================================
 
@@ -434,7 +431,6 @@ router.post('/group-planner', async (req, res) => {
     const restaurantId = groupOrder.restaurant._id;
     addAudit('Context Binding', `Bound restaurant: ${groupOrder.restaurant.name}`);
 
-    // Fetch REAL menu items from MongoDB
     const realMenu = await MenuItem.find({ restaurant: restaurantId }).lean();
 
     if (!realMenu || realMenu.length === 0) {
@@ -446,7 +442,6 @@ router.post('/group-planner', async (req, res) => {
     let totalSpent = 0;
     const memberRecommendations = [];
 
-    // Match each member's preferences against REAL menu items
     preferences.forEach((member, idx) => {
       const isVegOnly = member.foodPreference === 'Vegetarian';
       const isSpicy = member.spicePreference === 'Spicy';
@@ -856,9 +851,5 @@ Return JSON only matching the schema.
     });
   }
 });
-
-// =============================================================
-// EXPORT
-// =============================================================
 
 export default router;
