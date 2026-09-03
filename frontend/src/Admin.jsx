@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 
-
 const API = 'https://foodie-1-3b27.onrender.com/api';
+
 const emptyForm = {
   name: '',
   cuisine: '',
@@ -13,14 +13,7 @@ const emptyForm = {
   isVeg: false
 };
 
-function Admin() {
-  const [stats, setStats] = useState(null);
-  const [restaurants, setRestaurants] = useState([]);
-  const [form, setForm] = useState(emptyForm);
-  const [menuItems, setMenuItems] = useState([]);
-  const [orders, setOrders] = useState([]);
-
-const [menuForm, setMenuForm] = useState({
+const emptyMenuForm = {
   restaurant: '',
   name: '',
   description: '',
@@ -28,10 +21,19 @@ const [menuForm, setMenuForm] = useState({
   category: '',
   image: '',
   isVeg: false
-});
+};
 
-const [editingMenuId, setEditingMenuId] = useState(null);
+function Admin() {
+  const [stats, setStats] = useState(null);
+  const [restaurants, setRestaurants] = useState([]);
+  const [form, setForm] = useState(emptyForm);
+  const [menuItems, setMenuItems] = useState([]);
+  const [menuForm, setMenuForm] = useState(emptyMenuForm);
+  const [orders, setOrders] = useState([]);
+
+  const [editingMenuId, setEditingMenuId] = useState(null);
   const [editingId, setEditingId] = useState(null);
+
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -45,79 +47,135 @@ const [editingMenuId, setEditingMenuId] = useState(null);
   const loadDashboard = async () => {
     try {
       setLoading(true);
+      setMessage('');
 
-   const [
-  statsResponse,
-  restaurantResponse,
-  menuResponse,
-  ordersResponse
-] = await Promise.all([
-  fetch(`${API}/admin/stats`, {
-    headers
-  }),
-  fetch(`${API}/admin/restaurants`, {
-    headers
-  }),
-  fetch(`${API}/admin/menu-items`, {
-    headers
-  }),
-  fetch(`${API}/admin/orders`, {
-    headers
-  })
-]);
+      const [
+        statsResponse,
+        restaurantResponse,
+        menuResponse,
+        ordersResponse
+      ] = await Promise.all([
+        fetch(`${API}/admin/stats`, {
+          headers
+        }),
+
+        fetch(`${API}/admin/restaurants`, {
+          headers
+        }),
+
+        fetch(`${API}/admin/menu-items`, {
+          headers
+        }),
+
+        fetch(`${API}/admin/orders`, {
+          headers
+        })
+      ]);
 
       const statsData = await statsResponse.json();
-const restaurantData = await restaurantResponse.json();
-const menuData = await menuResponse.json();
-const ordersData = await ordersResponse.json();
+      const restaurantData = await restaurantResponse.json();
+      const menuData = await menuResponse.json();
+      const ordersData = await ordersResponse.json();
 
-if (!statsResponse.ok) {
-  throw new Error(
-    statsData.message || 'Could not load dashboard'
-  );
-}
+      if (!statsResponse.ok) {
+        throw new Error(
+          statsData.message || 'Could not load dashboard statistics'
+        );
+      }
 
-if (!restaurantResponse.ok) {
-  throw new Error(
-    restaurantData.message ||
-      'Could not load restaurants'
-  );
-}
+      if (!restaurantResponse.ok) {
+        throw new Error(
+          restaurantData.message || 'Could not load restaurants'
+        );
+      }
 
-if (!menuResponse.ok) {
-  throw new Error(
-    menuData.message ||
-      'Could not load menu items'
-  );
-}
-if (!ordersResponse.ok) {
-  throw new Error(
-    ordersData.message ||
-      'Could not load orders'
-  );
-}
+      if (!menuResponse.ok) {
+        throw new Error(
+          menuData.message || 'Could not load menu items'
+        );
+      }
 
-setStats(statsData);
-setRestaurants(restaurantData);
-setMenuItems(menuData);
-setOrders(ordersData);
+      if (!ordersResponse.ok) {
+        throw new Error(
+          ordersData.message || 'Could not load orders'
+        );
+      }
+
+      /*
+        Support both:
+
+        [
+          {...},
+          {...}
+        ]
+
+        and:
+
+        {
+          restaurants: [...]
+        }
+      */
+
+      const restaurantList = Array.isArray(restaurantData)
+        ? restaurantData
+        : restaurantData.restaurants ||
+          restaurantData.data ||
+          [];
+
+      const menuList = Array.isArray(menuData)
+        ? menuData
+        : menuData.menuItems ||
+          menuData.items ||
+          menuData.data ||
+          [];
+
+      const orderList = Array.isArray(ordersData)
+        ? ordersData
+        : ordersData.orders ||
+          ordersData.data ||
+          [];
+
+      const statsObject =
+        statsData?.stats ||
+        statsData?.data ||
+        statsData;
+
+      setStats(statsObject);
+      setRestaurants(restaurantList);
+      setMenuItems(menuList);
+      setOrders(orderList);
+
     } catch (error) {
-      setMessage(error.message);
+      console.error('Admin dashboard error:', error);
+      setMessage(error.message || 'Could not load admin dashboard');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    if (!token) {
+      setMessage('Please log in as an admin.');
+      setLoading(false);
+      return;
+    }
+
     loadDashboard();
   }, []);
 
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
+    const {
+      name,
+      value,
+      type,
+      checked
+    } = e.target;
 
     setForm((current) => ({
       ...current,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: type === 'checkbox'
+        ? checked
+        : value
     }));
   };
 
@@ -125,12 +183,16 @@ setOrders(ordersData);
     e.preventDefault();
 
     try {
+      setMessage('');
+
       const payload = {
         ...form,
+
         cuisine: form.cuisine
           .split(',')
           .map((item) => item.trim())
           .filter(Boolean),
+
         rating: Number(form.rating),
         deliveryTime: Number(form.deliveryTime),
         priceForTwo: Number(form.priceForTwo)
@@ -140,7 +202,9 @@ setOrders(ordersData);
         ? `${API}/admin/restaurants/${editingId}`
         : `${API}/admin/restaurants`;
 
-      const method = editingId ? 'PUT' : 'POST';
+      const method = editingId
+        ? 'PUT'
+        : 'POST';
 
       const response = await fetch(url, {
         method,
@@ -166,8 +230,12 @@ setOrders(ordersData);
       setEditingId(null);
 
       await loadDashboard();
+
     } catch (error) {
-      setMessage(error.message);
+      console.error('Save restaurant error:', error);
+      setMessage(
+        error.message || 'Could not save restaurant'
+      );
     }
   };
 
@@ -176,13 +244,25 @@ setOrders(ordersData);
 
     setForm({
       name: restaurant.name || '',
-      cuisine: restaurant.cuisine?.join(', ') || '',
-      rating: restaurant.rating || 4,
-      deliveryTime: restaurant.deliveryTime || 30,
+
+      cuisine: Array.isArray(restaurant.cuisine)
+        ? restaurant.cuisine.join(', ')
+        : restaurant.cuisine || '',
+
+      rating: restaurant.rating ?? 4,
+
+      deliveryTime:
+        restaurant.deliveryTime ?? 30,
+
       image: restaurant.image || '',
+
       location: restaurant.location || '',
-      priceForTwo: restaurant.priceForTwo || 400,
-      isVeg: restaurant.isVeg || false
+
+      priceForTwo:
+        restaurant.priceForTwo ?? 400,
+
+      isVeg:
+        Boolean(restaurant.isVeg)
     });
 
     window.scrollTo({
@@ -199,6 +279,8 @@ setOrders(ordersData);
     if (!confirmed) return;
 
     try {
+      setMessage('');
+
       const response = await fetch(
         `${API}/admin/restaurants/${id}`,
         {
@@ -215,141 +297,171 @@ setOrders(ordersData);
         );
       }
 
-      setMessage('Restaurant deleted successfully!');
+      setMessage(
+        'Restaurant deleted successfully! 🗑️'
+      );
 
       await loadDashboard();
+
     } catch (error) {
-      setMessage(error.message);
+      console.error('Delete restaurant error:', error);
+
+      setMessage(
+        error.message || 'Could not delete restaurant'
+      );
     }
   };
 
   const handleMenuChange = (e) => {
-  const { name, value, type, checked } = e.target;
+    const {
+      name,
+      value,
+      type,
+      checked
+    } = e.target;
 
-  setMenuForm((current) => ({
-    ...current,
-    [name]: type === 'checkbox' ? checked : value
-  }));
-};
+    setMenuForm((current) => ({
+      ...current,
+      [name]: type === 'checkbox'
+        ? checked
+        : value
+    }));
+  };
 
-const saveMenuItem = async (e) => {
-  e.preventDefault();
+  const saveMenuItem = async (e) => {
+    e.preventDefault();
 
-  try {
-    const payload = {
-      ...menuForm,
-      price: Number(menuForm.price)
-    };
+    try {
+      setMessage('');
 
-    const url = editingMenuId
-      ? `${API}/admin/menu-items/${editingMenuId}`
-      : `${API}/admin/menu-items`;
+      const payload = {
+        ...menuForm,
+        price: Number(menuForm.price)
+      };
 
-    const method = editingMenuId ? 'PUT' : 'POST';
+      const url = editingMenuId
+        ? `${API}/admin/menu-items/${editingMenuId}`
+        : `${API}/admin/menu-items`;
 
-    const response = await fetch(url, {
-      method,
-      headers,
-      body: JSON.stringify(payload)
-    });
+      const method = editingMenuId
+        ? 'PUT'
+        : 'POST';
 
-    const data = await response.json();
+      const response = await fetch(url, {
+        method,
+        headers,
+        body: JSON.stringify(payload)
+      });
 
-    if (!response.ok) {
-      throw new Error(
-        data.message || 'Could not save menu item'
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || 'Could not save menu item'
+        );
+      }
+
+      setMessage(
+        editingMenuId
+          ? 'Menu item updated successfully! 🎉'
+          : 'Menu item added successfully! 🎉'
+      );
+
+      setMenuForm(emptyMenuForm);
+      setEditingMenuId(null);
+
+      await loadDashboard();
+
+    } catch (error) {
+      console.error('Save menu item error:', error);
+
+      setMessage(
+        error.message || 'Could not save menu item'
       );
     }
+  };
 
-    setMessage(
-      editingMenuId
-        ? 'Menu item updated successfully! 🎉'
-        : 'Menu item added successfully! 🎉'
-    );
+  const editMenuItem = (item) => {
+    setEditingMenuId(item._id);
 
     setMenuForm({
-      restaurant: '',
-      name: '',
-      description: '',
-      price: 0,
-      category: '',
-      image: '',
-      isVeg: false
+      restaurant:
+        item.restaurant?._id ||
+        item.restaurant ||
+        '',
+
+      name:
+        item.name || '',
+
+      description:
+        item.description || '',
+
+      price:
+        item.price ?? 0,
+
+      category:
+        item.category || '',
+
+      image:
+        item.image || '',
+
+      isVeg:
+        Boolean(item.isVeg)
     });
 
-    setEditingMenuId(null);
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
 
-    await loadDashboard();
-  } catch (error) {
-    setMessage(error.message);
-  }
-};
-
-const editMenuItem = (item) => {
-  setEditingMenuId(item._id);
-
-  setMenuForm({
-    restaurant: item.restaurant?._id || item.restaurant || '',
-    name: item.name || '',
-    description: item.description || '',
-    price: item.price || 0,
-    category: item.category || '',
-    image: item.image || '',
-    isVeg: item.isVeg || false
-  });
-
-  window.scrollTo({
-    top: 0,
-    behavior: 'smooth'
-  });
-};
-
-const deleteMenuItem = async (id) => {
-  const confirmed = window.confirm(
-    'Are you sure you want to delete this menu item?'
-  );
-
-  if (!confirmed) return;
-
-  try {
-    const response = await fetch(
-      `${API}/admin/menu-items/${id}`,
-      {
-        method: 'DELETE',
-        headers
-      }
+  const deleteMenuItem = async (id) => {
+    const confirmed = window.confirm(
+      'Are you sure you want to delete this menu item?'
     );
 
-    const data = await response.json();
+    if (!confirmed) return;
 
-    if (!response.ok) {
-      throw new Error(
-        data.message || 'Could not delete menu item'
+    try {
+      setMessage('');
+
+      const response = await fetch(
+        `${API}/admin/menu-items/${id}`,
+        {
+          method: 'DELETE',
+          headers
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || 'Could not delete menu item'
+        );
+      }
+
+      setMessage(
+        'Menu item deleted successfully! 🗑️'
+      );
+
+      await loadDashboard();
+
+    } catch (error) {
+      console.error('Delete menu item error:', error);
+
+      setMessage(
+        error.message || 'Could not delete menu item'
       );
     }
+  };
 
-    setMessage('Menu item deleted successfully! 🗑️');
+  const cancelMenuEdit = () => {
+    setEditingMenuId(null);
+    setMenuForm(emptyMenuForm);
+  };
 
-    await loadDashboard();
-  } catch (error) {
-    setMessage(error.message);
-  }
-};
-
-const cancelMenuEdit = () => {
-  setEditingMenuId(null);
-
-  setMenuForm({
-    restaurant: '',
-    name: '',
-    description: '',
-    price: 0,
-    category: '',
-    image: '',
-    isVeg: false
-  });
-};
-const cancelEdit = () => {
+  const cancelEdit = () => {
     setEditingId(null);
     setForm(emptyForm);
     setMessage('');
@@ -373,7 +485,9 @@ const cancelEdit = () => {
             Foodie Management
           </p>
 
-          <h1>Admin Dashboard</h1>
+          <h1>
+            Admin Dashboard
+          </h1>
 
           <p>
             Manage your food delivery platform.
@@ -387,43 +501,77 @@ const cancelEdit = () => {
         </div>
       )}
 
-      {/* STATS */}
+      {/* =========================
+          STATS
+      ========================== */}
 
       <div className="adminStats">
 
         <div className="statCard">
           <span>🍽️</span>
-          <p>Restaurants</p>
-          <h2>{stats?.restaurants || 0}</h2>
+
+          <p>
+            Restaurants
+          </p>
+
+          <h2>
+            {stats?.restaurants ?? restaurants.length}
+          </h2>
         </div>
 
         <div className="statCard">
           <span>🥘</span>
-          <p>Menu Items</p>
-          <h2>{stats?.menuItems || 0}</h2>
+
+          <p>
+            Menu Items
+          </p>
+
+          <h2>
+            {stats?.menuItems ?? menuItems.length}
+          </h2>
         </div>
 
         <div className="statCard">
           <span>👥</span>
-          <p>Users</p>
-          <h2>{stats?.users || 0}</h2>
+
+          <p>
+            Users
+          </p>
+
+          <h2>
+            {stats?.users ?? 0}
+          </h2>
         </div>
 
         <div className="statCard">
           <span>📦</span>
-          <p>Orders</p>
-          <h2>{stats?.orders || 0}</h2>
+
+          <p>
+            Orders
+          </p>
+
+          <h2>
+            {stats?.orders ?? orders.length}
+          </h2>
         </div>
 
         <div className="statCard revenueCard">
           <span>💰</span>
-          <p>Total Revenue</p>
-          <h2>₹{stats?.revenue || 0}</h2>
+
+          <p>
+            Total Revenue
+          </p>
+
+          <h2>
+            ₹{stats?.revenue ?? 0}
+          </h2>
         </div>
 
       </div>
 
-      {/* RESTAURANT FORM */}
+      {/* =========================
+          ADD / EDIT RESTAURANT
+      ========================== */}
 
       <section className="adminSection">
 
@@ -498,13 +646,16 @@ const cancelEdit = () => {
           />
 
           <label className="checkboxRow">
+
             <input
               name="isVeg"
               type="checkbox"
               checked={form.isVeg}
               onChange={handleChange}
             />
+
             Vegetarian restaurant
+
           </label>
 
           <div className="formButtons">
@@ -534,311 +685,397 @@ const cancelEdit = () => {
 
       </section>
 
-      {/* RESTAURANT LIST */}
+      {/* =========================
+          RESTAURANT LIST
+      ========================== */}
 
       <section className="adminSection">
 
         <div className="sectionTitle">
-          <h2>Manage Restaurants</h2>
+
+          <h2>
+            Manage Restaurants
+          </h2>
 
           <span>
             {restaurants.length} restaurants
           </span>
+
         </div>
 
         <div className="adminRestaurantList">
 
-          {restaurants.map((restaurant) => (
+          {restaurants.length === 0 ? (
 
-            <div
-              className="adminRestaurant"
-              key={restaurant._id}
-            >
+            <p>
+              No restaurants found.
+            </p>
 
-              <img
-                src={
-                  restaurant.image ||
-                  'https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=500&q=80'
-                }
-                alt={restaurant.name}
-              />
+          ) : (
 
-              <div className="restaurantInfo">
+            restaurants.map((restaurant) => (
 
-                <h3>{restaurant.name}</h3>
+              <div
+                className="adminRestaurant"
+                key={restaurant._id}
+              >
 
-                <p>
-                  ⭐ {restaurant.rating} ·{' '}
-                  {restaurant.deliveryTime} min
-                </p>
+                <img
+                  src={
+                    restaurant.image ||
+                    'https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=500&q=80'
+                  }
+                  alt={restaurant.name}
+                />
 
-                <p>
-                  {restaurant.cuisine?.join(', ')}
-                </p>
+                <div className="restaurantInfo">
 
-                <small>
-                  {restaurant.location || 'Location not added'}
-                </small>
+                  <h3>
+                    {restaurant.name}
+                  </h3>
+
+                  <p>
+                    ⭐ {restaurant.rating ?? 0} ·{' '}
+                    {restaurant.deliveryTime ?? 0} min
+                  </p>
+
+                  <p>
+                    {Array.isArray(restaurant.cuisine)
+                      ? restaurant.cuisine.join(', ')
+                      : restaurant.cuisine || 'Cuisine not added'}
+                  </p>
+
+                  <small>
+                    {restaurant.location ||
+                      'Location not added'}
+                  </small>
+
+                </div>
+
+                <div className="restaurantActions">
+
+                  <button
+                    onClick={() =>
+                      editRestaurant(restaurant)
+                    }
+                  >
+                    Edit
+                  </button>
+
+                  <button
+                    className="deleteButton"
+                    onClick={() =>
+                      deleteRestaurant(
+                        restaurant._id
+                      )
+                    }
+                  >
+                    Delete
+                  </button>
+
+                </div>
 
               </div>
 
-              <div className="restaurantActions">
+            ))
 
-                <button
-                  onClick={() =>
-                    editRestaurant(restaurant)
-                  }
-                >
-                  Edit
-                </button>
-
-                <button
-                  className="deleteButton"
-                  onClick={() =>
-                    deleteRestaurant(
-                      restaurant._id
-                    )
-                  }
-                >
-                  Delete
-                </button>
-
-              </div>
-
-            </div>
-
-          ))}
+          )}
 
         </div>
 
       </section>
-    {/* MENU MANAGEMENT */}
 
-<section className="adminSection">
+      {/* =========================
+          MENU MANAGEMENT
+      ========================== */}
 
-  <h2>
-    {editingMenuId
-      ? 'Edit Menu Item'
-      : 'Add Menu Item'}
-  </h2>
+      <section className="adminSection">
 
-  <form
-    className="restaurantForm"
-    onSubmit={saveMenuItem}
-  >
+        <h2>
+          {editingMenuId
+            ? 'Edit Menu Item'
+            : 'Add Menu Item'}
+        </h2>
 
-    <select
-      name="restaurant"
-      value={menuForm.restaurant}
-      onChange={handleMenuChange}
-      required
-    >
-      <option value="">
-        Select restaurant
-      </option>
-
-      {restaurants.map((restaurant) => (
-        <option
-          key={restaurant._id}
-          value={restaurant._id}
+        <form
+          className="restaurantForm"
+          onSubmit={saveMenuItem}
         >
-          {restaurant.name}
-        </option>
-      ))}
-    </select>
 
-    <input
-      name="name"
-      placeholder="Menu item name"
-      value={menuForm.name}
-      onChange={handleMenuChange}
-      required
-    />
-
-    <input
-      name="price"
-      type="number"
-      min="0"
-      placeholder="Price"
-      value={menuForm.price}
-      onChange={handleMenuChange}
-      required
-    />
-
-    <input
-      name="category"
-      placeholder="Category (e.g. Pizza)"
-      value={menuForm.category}
-      onChange={handleMenuChange}
-    />
-
-    <input
-      name="description"
-      placeholder="Description"
-      value={menuForm.description}
-      onChange={handleMenuChange}
-    />
-
-    <input
-      name="image"
-      placeholder="Image URL"
-      value={menuForm.image}
-      onChange={handleMenuChange}
-    />
-
-    <label className="checkboxRow">
-      <input
-        name="isVeg"
-        type="checkbox"
-        checked={menuForm.isVeg}
-        onChange={handleMenuChange}
-      />
-      Vegetarian item
-    </label>
-
-    <div className="formButtons">
-
-      <button
-        className="primary"
-        type="submit"
-      >
-        {editingMenuId
-          ? 'Update Menu Item'
-          : 'Add Menu Item'}
-      </button>
-
-      {editingMenuId && (
-        <button
-          type="button"
-          className="cancelButton"
-          onClick={cancelMenuEdit}
-        >
-          Cancel
-        </button>
-      )}
-
-    </div>
-
-  </form>
-
-</section>
-
-<section className="adminSection">
-
-  <div className="sectionTitle">
-    <h2>Manage Menu Items</h2>
-
-    <span>
-      {menuItems.length} menu items
-    </span>
-  </div>
-
-  <div className="adminRestaurantList">
-
-    {menuItems.map((item) => (
-
-      <div
-        className="adminRestaurant"
-        key={item._id}
-      >
-
-        <div className="restaurantInfo">
-
-          <h3>{item.name}</h3>
-
-          <p>
-            🍽️ {item.restaurant?.name || 'Restaurant'}
-          </p>
-
-          <p>
-            ₹{item.price} ·{' '}
-            {item.category || 'Uncategorized'}
-          </p>
-
-          <small>
-            {item.description || 'No description'}
-          </small>
-
-        </div>
-
-        <div className="restaurantActions">
-
-          <button
-            onClick={() => editMenuItem(item)}
+          <select
+            name="restaurant"
+            value={menuForm.restaurant}
+            onChange={handleMenuChange}
+            required
           >
-            Edit
-          </button>
 
-          <button
-            className="deleteButton"
-            onClick={() => deleteMenuItem(item._id)}
-          >
-            Delete
-          </button>
+            <option value="">
+              Select restaurant
+            </option>
 
-        </div>
+            {restaurants.map((restaurant) => (
 
-      </div>
+              <option
+                key={restaurant._id}
+                value={restaurant._id}
+              >
+                {restaurant.name}
+              </option>
 
-    ))}
+            ))}
 
-  </div>
+          </select>
 
-</section>
-<section className="adminSection">
+          <input
+            name="name"
+            placeholder="Menu item name"
+            value={menuForm.name}
+            onChange={handleMenuChange}
+            required
+          />
 
-  <div className="sectionTitle">
-    <h2>Manage Orders</h2>
+          <input
+            name="price"
+            type="number"
+            min="0"
+            placeholder="Price"
+            value={menuForm.price}
+            onChange={handleMenuChange}
+            required
+          />
 
-    <span>
-      {orders.length} orders
-    </span>
-  </div>
+          <input
+            name="category"
+            placeholder="Category (e.g. Pizza)"
+            value={menuForm.category}
+            onChange={handleMenuChange}
+          />
 
-  <div className="adminRestaurantList">
+          <input
+            name="description"
+            placeholder="Description"
+            value={menuForm.description}
+            onChange={handleMenuChange}
+          />
 
-    {orders.length === 0 ? (
-      <p>No orders yet.</p>
-    ) : (
-      orders.map((order) => (
+          <input
+            name="image"
+            placeholder="Image URL"
+            value={menuForm.image}
+            onChange={handleMenuChange}
+          />
 
-        <div
-          className="adminRestaurant"
-          key={order._id}
-        >
+          <label className="checkboxRow">
 
-          <div className="restaurantInfo">
+            <input
+              name="isVeg"
+              type="checkbox"
+              checked={menuForm.isVeg}
+              onChange={handleMenuChange}
+            />
 
-            <h3>
-              {order.restaurant?.name || 'Restaurant'}
-            </h3>
+            Vegetarian item
 
-            <p>
-              👤 {order.user?.name || 'User'}
-            </p>
+          </label>
 
-            <p>
-              📧 {order.user?.email || 'No email'}
-            </p>
+          <div className="formButtons">
 
-            <p>
-              💰 ₹{order.total} · {order.status}
-            </p>
+            <button
+              className="primary"
+              type="submit"
+            >
+              {editingMenuId
+                ? 'Update Menu Item'
+                : 'Add Menu Item'}
+            </button>
 
-            <small>
-              📍 {order.address}
-            </small>
+            {editingMenuId && (
+              <button
+                type="button"
+                className="cancelButton"
+                onClick={cancelMenuEdit}
+              >
+                Cancel
+              </button>
+            )}
 
           </div>
 
+        </form>
+
+      </section>
+
+      {/* =========================
+          MENU ITEM LIST
+      ========================== */}
+
+      <section className="adminSection">
+
+        <div className="sectionTitle">
+
+          <h2>
+            Manage Menu Items
+          </h2>
+
+          <span>
+            {menuItems.length} menu items
+          </span>
+
         </div>
 
-      ))
-    )}
+        <div className="adminRestaurantList">
 
-  </div>
+          {menuItems.length === 0 ? (
 
-</section>
+            <p>
+              No menu items found.
+            </p>
+
+          ) : (
+
+            menuItems.map((item) => (
+
+              <div
+                className="adminRestaurant"
+                key={item._id}
+              >
+
+                <div className="restaurantInfo">
+
+                  <h3>
+                    {item.name}
+                  </h3>
+
+                  <p>
+                    🍽️{' '}
+                    {item.restaurant?.name ||
+                      'Restaurant'}
+                  </p>
+
+                  <p>
+                    ₹{item.price} ·{' '}
+                    {item.category ||
+                      'Uncategorized'}
+                  </p>
+
+                  <small>
+                    {item.description ||
+                      'No description'}
+                  </small>
+
+                </div>
+
+                <div className="restaurantActions">
+
+                  <button
+                    onClick={() =>
+                      editMenuItem(item)
+                    }
+                  >
+                    Edit
+                  </button>
+
+                  <button
+                    className="deleteButton"
+                    onClick={() =>
+                      deleteMenuItem(
+                        item._id
+                      )
+                    }
+                  >
+                    Delete
+                  </button>
+
+                </div>
+
+              </div>
+
+            ))
+
+          )}
+
+        </div>
+
+      </section>
+
+      {/* =========================
+          ORDERS
+      ========================== */}
+
+      <section className="adminSection">
+
+        <div className="sectionTitle">
+
+          <h2>
+            Manage Orders
+          </h2>
+
+          <span>
+            {orders.length} orders
+          </span>
+
+        </div>
+
+        <div className="adminRestaurantList">
+
+          {orders.length === 0 ? (
+
+            <p>
+              No orders yet.
+            </p>
+
+          ) : (
+
+            orders.map((order) => (
+
+              <div
+                className="adminRestaurant"
+                key={order._id}
+              >
+
+                <div className="restaurantInfo">
+
+                  <h3>
+                    {order.restaurant?.name ||
+                      'Restaurant'}
+                  </h3>
+
+                  <p>
+                    👤{' '}
+                    {order.user?.name ||
+                      'User'}
+                  </p>
+
+                  <p>
+                    📧{' '}
+                    {order.user?.email ||
+                      'No email'}
+                  </p>
+
+                  <p>
+                    💰 ₹{order.total ?? 0} ·{' '}
+                    {order.status ||
+                      'UNKNOWN'}
+                  </p>
+
+                  <small>
+                    📍{' '}
+                    {order.address ||
+                      'Address not available'}
+                  </small>
+
+                </div>
+
+              </div>
+
+            ))
+
+          )}
+
+        </div>
+
+      </section>
+
     </main>
   );
 }
