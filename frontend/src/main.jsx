@@ -181,7 +181,7 @@ function App() {
       />
 
       <Routes>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<Home add={add} cart={cart} />} />
         <Route path="/restaurant/:id" element={<Restaurant add={add} />} />
         <Route
           path="/cart"
@@ -423,16 +423,23 @@ function RestaurantMap({ restaurants, selectedLocation, setSelectedLocation }) {
 }
 
 // =========================================================
-// HOME
+// HOME (WITH AGENTIC COMMERCE WORKFLOW)
 // =========================================================
 
-function Home() {
+function Home({ add, cart }) {
   const [data, setData] = useState([]);
   const [q, setQ] = useState('');
-  const [aiQuery, setAiQuery] = useState('');
-  const [aiResults, setAiResults] = useState([]);
-  const [aiMessage, setAiMessage] = useState('');
 
+  // AI Agent States
+  const [aiQuery, setAiQuery] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiReply, setAiReply] = useState('');
+  const [agentItems, setAgentItems] = useState([]);
+  const [proposedAction, setProposedAction] = useState(null);
+  const [auditTrail, setAuditTrail] = useState([]);
+  const [showAudit, setShowAudit] = useState(true);
+
+  // Location States
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [radius, setRadius] = useState(10);
   const [locationMessage, setLocationMessage] = useState(
@@ -537,86 +544,83 @@ function Home() {
       return a.distance - b.distance;
     });
 
-  const askAI = async () => {
-    const query = aiQuery.trim();
-    if (!query) {
-      setAiMessage('Tell me what you are craving 😋');
-      setAiResults([]);
-      return;
-    }
+  // Handle Commerce Agent Submissions safely
+  const handleAgentSubmit = async () => {
+    const prompt = aiQuery.trim();
+    if (!prompt) return;
 
     try {
-      setAiMessage('Foodie AI is thinking... 🤖✨');
-      setAiResults([]);
+      setAiLoading(true);
+      setAiReply('');
+      setAgentItems([]);
+      setProposedAction(null);
+      setAuditTrail([]);
 
-      const response = await fetch(`${API}/ai/recommend`, {
+      const token = localStorage.getItem('token');
+
+      // Primary Endpoint: AI Agentic Commerce
+      let response = await fetch(`${API}/ai/agent`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query })
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          prompt,
+          cart: cart || [],
+          activeGroupCode: localStorage.getItem('activeGroupCode') || null
+        })
       });
+
+      // Fallback to legacy recommend if /agent route is unmounted or 404
+      if (response.status === 404) {
+        response = await fetch(`${API}/ai/recommend`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ query: prompt })
+        });
+      }
 
       const result = await response.json();
       if (!response.ok) {
-        throw new Error(result.message || 'AI recommendation failed');
+        throw new Error(result.message || 'AI assistant failed to respond.');
       }
 
-      setAiMessage(
-        result.message || 'Here are some recommendations for you! 🍽️'
-      );
+      // Format response according to endpoint payload schema
+      if (result.reply || result.message) {
+        setAiReply(result.reply || result.message);
+      }
 
-      const recommendations = result.recommendations || [];
-      const restaurantResponse = await fetch(`${API}/restaurants`);
-      const restaurants = await restaurantResponse.json();
+      if (result.auditTrail && Array.isArray(result.auditTrail)) {
+        setAuditTrail(result.auditTrail);
+      }
 
-      const formattedResults = recommendations
-        .map((recommendation) => {
-          const restaurant = restaurants.find(
-            (r) => String(r._id) === String(recommendation.restaurantId)
-          );
-          if (!restaurant) return null;
-
-          return {
-            ...restaurant,
-            aiMenuItem: recommendation.menuItemName,
-            aiMenuItemId: recommendation.menuItemId,
-            aiPrice: recommendation.price,
-            aiReason: recommendation.reason
-          };
-        })
-        .filter(Boolean);
-
-      const resultsWithDishImages = await Promise.all(
-        formattedResults.map(async (restaurant) => {
-          try {
-            const detailResponse = await fetch(
-              `${API}/restaurants/${restaurant._id}`
-            );
-            if (!detailResponse.ok) return restaurant;
-
-            const detail = await detailResponse.json();
-            const menuItem = detail.menu?.find(
-              (item) =>
-                String(item._id) === String(restaurant.aiMenuItemId)
-            );
-
-            return {
-              ...restaurant,
-              aiMenuItemImage: menuItem?.image || null
-            };
-          } catch (error) {
-            console.error('Could not load AI dish image:', error);
-            return restaurant;
-          }
-        })
-      );
-
-      setAiResults(resultsWithDishImages);
+      if (result.proposedActions) {
+        setProposedAction(result.proposedActions);
+        if (result.proposedActions.type === 'RECOMMENDATION_LIST') {
+          setAgentItems(result.proposedActions.items || []);
+        }
+      } else if (Array.isArray(result.data)) {
+        setAgentItems(result.data);
+      } else if (Array.isArray(result.recommendations)) {
+        // Map legacy recommendation payload format into catalog view
+        const legacyItems = result.recommendations.map((r) => ({
+          itemId: r.menuItemId,
+          name: r.menuItemName,
+          price: r.price,
+          isVeg: r.isVeg,
+          restaurantId: r.restaurantId,
+          restaurantName: r.restaurantName
+        }));
+        setAgentItems(legacyItems);
+      }
     } catch (error) {
-      console.error('AI error:', error);
-      setAiResults([]);
-      setAiMessage(
-        error.message || 'Sorry, I could not get recommendations right now. 😭'
-      );
+      console.error('Agent query error:', error);
+      setAiReply(`Could not complete request: ${error.message}`);
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -642,6 +646,303 @@ function Home() {
         </div>
       </section>
 
+      {/* =================================================
+          UPGRADED AI COMMERCE AGENT (RAZORPAY TRACK 01)
+      ================================================= */}
+      <section
+        className="aiBox"
+        style={{
+          background: 'linear-gradient(145deg, #ffffff 0%, #fff8f5 100%)',
+          border: '1.5px solid #ffd8c2',
+          borderRadius: '20px',
+          padding: '28px',
+          margin: '30px auto',
+          maxWidth: '1400px',
+          boxShadow: '0 8px 24px rgba(255, 90, 31, 0.08)'
+        }}
+      >
+        <div className="aiHeader" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span
+              className="aiBadge"
+              style={{
+                background: '#ff5a1f',
+                color: '#fff',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontWeight: '700',
+                fontSize: '12px'
+              }}
+            >
+              🤖 RAZORPAY AGENTIC COMMERCE
+            </span>
+            <h2 style={{ fontSize: '26px', margin: '10px 0 6px 0', color: '#1a1a1a' }}>
+              AI Food Commerce Assistant
+            </h2>
+            <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
+              Ask in plain English: "Dinner for 4 under ₹1500, one veg" or "Optimize my cart to save money".
+            </p>
+          </div>
+          <div style={{ fontSize: '38px' }}>⚡</div>
+        </div>
+
+        {/* Natural Language Intent Input */}
+        <div className="aiSearch" style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+          <input
+            value={aiQuery}
+            onChange={(e) => setAiQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleAgentSubmit();
+            }}
+            placeholder="Try: 'Spicy dinner for 4 people under ₹1500 with 1 veg' or 'Optimize cart'"
+            style={{
+              flex: 1,
+              padding: '14px 18px',
+              borderRadius: '12px',
+              border: '1.5px solid #ddd',
+              fontSize: '15px'
+            }}
+          />
+          <button
+            onClick={handleAgentSubmit}
+            disabled={aiLoading}
+            style={{
+              padding: '14px 24px',
+              background: '#ff5a1f',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '12px',
+              fontWeight: '700',
+              cursor: aiLoading ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {aiLoading ? 'Agent Reasoning... 🧠' : 'Ask Agent ✨'}
+          </button>
+        </div>
+
+        {/* Decision Banner */}
+        {aiReply && (
+          <div
+            style={{
+              marginTop: '20px',
+              padding: '16px 20px',
+              background: '#fff',
+              border: '1px solid #ffe0d0',
+              borderRadius: '12px',
+              lineHeight: '1.6',
+              color: '#333'
+            }}
+          >
+            <strong>Agent Explanation:</strong>
+            <p style={{ margin: '6px 0 0 0', whiteSpace: 'pre-line' }}>{aiReply}</p>
+          </div>
+        )}
+
+        {/* Bounded Action Approval Gate: Group Plan */}
+        {proposedAction && proposedAction.type === 'POPULATE_GROUP_ORDER' && (
+          <div
+            style={{
+              marginTop: '18px',
+              padding: '20px',
+              background: '#e8f5e9',
+              borderRadius: '14px',
+              border: '1.5px solid #81c784'
+            }}
+          >
+            <h4 style={{ margin: '0 0 8px 0', color: '#2e7d32', fontSize: '16px' }}>
+              🛡️ Approval Required: Proposed Group Plan (₹{proposedAction.totalAmount})
+            </h4>
+            <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#444' }}>
+              The agent selected {proposedAction.items.length} verified catalog dishes matching your constraints.
+            </p>
+            <ul style={{ margin: '0 0 16px 0', paddingLeft: '20px', fontSize: '14px', color: '#333' }}>
+              {proposedAction.items.map((it, idx) => (
+                <li key={idx}>
+                  {it.isVeg ? '🟢' : '🔴'} <strong>{it.name}</strong> — ₹{it.price} ({it.restaurantName})
+                </li>
+              ))}
+            </ul>
+            <button
+              onClick={() => {
+                proposedAction.items.forEach((item) => {
+                  add(
+                    {
+                      _id: item.itemId,
+                      name: item.name,
+                      price: item.price,
+                      image: DEFAULT_FOOD_IMAGE
+                    },
+                    item.restaurantId
+                  );
+                });
+                setAiReply('✅ Approved! All proposed items added to your cart.');
+                setProposedAction(null);
+              }}
+              style={{
+                padding: '10px 20px',
+                background: '#2e7d32',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: '700',
+                cursor: 'pointer'
+              }}
+            >
+              Approve & Add to Cart (₹{proposedAction.totalAmount})
+            </button>
+          </div>
+        )}
+
+        {/* Bounded Action Approval Gate: Cart Optimization */}
+        {proposedAction && proposedAction.type === 'APPLY_CART_OPTIMIZATION' && (
+          <div
+            style={{
+              marginTop: '18px',
+              padding: '18px',
+              background: '#eef2ff',
+              borderRadius: '14px',
+              border: '1.5px solid #a5b4fc'
+            }}
+          >
+            <h4 style={{ margin: '0 0 6px 0', color: '#3730a3' }}>
+              💡 Cart Optimization Detected: Save ₹{proposedAction.savings}
+            </h4>
+            <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#555' }}>
+              New total will be ₹{proposedAction.newTotal}. No items will be dropped.
+            </p>
+            <button
+              onClick={() => {
+                setAiReply(`🎉 Applied discount! Saved ₹${proposedAction.savings} on this checkout.`);
+                setProposedAction(null);
+              }}
+              style={{
+                padding: '8px 18px',
+                background: '#4338ca',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: '700',
+                cursor: 'pointer'
+              }}
+            >
+              Apply ₹{proposedAction.savings} Savings
+            </button>
+          </div>
+        )}
+
+        {/* Catalog Search Recommendations Grid */}
+        {agentItems.length > 0 && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+              gap: '16px',
+              marginTop: '20px'
+            }}
+          >
+            {agentItems.map((dish) => (
+              <div
+                key={dish.itemId}
+                style={{
+                  padding: '16px',
+                  background: '#fff',
+                  borderRadius: '14px',
+                  border: '1px solid #eee',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between'
+                }}
+              >
+                <div>
+                  <span style={{ fontSize: '12px' }}>{dish.isVeg ? '🟢 Pure Veg' : '🔴 Non-Veg'}</span>
+                  <h4 style={{ margin: '6px 0 4px 0', fontSize: '16px' }}>{dish.name}</h4>
+                  <div style={{ color: '#ff5a1f', fontWeight: 'bold', fontSize: '15px' }}>
+                    ₹{dish.price}
+                  </div>
+                  <p style={{ fontSize: '12px', color: '#777', margin: '6px 0' }}>
+                    {dish.restaurantName}
+                  </p>
+                </div>
+                <button
+                  onClick={() =>
+                    add(
+                      {
+                        _id: dish.itemId,
+                        name: dish.name,
+                        price: dish.price,
+                        image: DEFAULT_FOOD_IMAGE
+                      },
+                      dish.restaurantId
+                    )
+                  }
+                  style={{
+                    padding: '8px 12px',
+                    background: '#ff5a1f',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    marginTop: '10px'
+                  }}
+                >
+                  + Add to Cart
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Audit Trail */}
+        {auditTrail.length > 0 && (
+          <div style={{ marginTop: '25px', borderTop: '1px solid #ffd8c2', paddingTop: '16px' }}>
+            <div
+              onClick={() => setShowAudit(!showAudit)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: 'pointer',
+                userSelect: 'none'
+              }}
+            >
+              <strong style={{ fontSize: '14px', color: '#d84315' }}>
+                🤖 Agent Execution Audit Trail ({auditTrail.length} Events)
+              </strong>
+              <span style={{ fontSize: '12px', color: '#ff5a1f' }}>{showAudit ? '▲ Hide' : '▼ View Trace'}</span>
+            </div>
+
+            {showAudit && (
+              <div
+                style={{
+                  marginTop: '12px',
+                  background: '#212121',
+                  color: '#e0e0e0',
+                  borderRadius: '10px',
+                  padding: '14px 18px',
+                  fontFamily: 'monospace',
+                  fontSize: '12px',
+                  maxHeight: '220px',
+                  overflowY: 'auto'
+                }}
+              >
+                {auditTrail.map((log, i) => (
+                  <div key={i} style={{ marginBottom: '8px', borderBottom: '1px solid #333', paddingBottom: '4px' }}>
+                    <span style={{ color: '#81c784' }}>[{log.time}]</span>{' '}
+                    <span style={{ color: '#ffb74d', fontWeight: 'bold' }}>{log.step}:</span>{' '}
+                    <span style={{ color: '#e0e0e0' }}>{log.detail}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* =================================================
+          LOCATION DISCOVERY
+      ================================================= */}
       <section
         style={{
           margin: '30px auto',
@@ -759,67 +1060,9 @@ function Home() {
         )}
       </section>
 
-      <section className="aiBox">
-        <div className="aiHeader">
-          <div>
-            <span className="aiBadge">✨ AI FOOD ASSISTANT</span>
-            <h2>What should I eat?</h2>
-            <p>Tell me what you're craving and I'll find something for you.</p>
-          </div>
-          <div className="aiIcon">🤖</div>
-        </div>
-
-        <div className="aiSearch">
-          <input
-            value={aiQuery}
-            onChange={(e) => setAiQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') askAI();
-            }}
-            placeholder="Try: spicy food under ₹300"
-          />
-          <button onClick={askAI}>Ask AI ✨</button>
-        </div>
-
-        {aiMessage && <p className="aiMessage">{aiMessage}</p>}
-
-        {aiResults.length > 0 && (
-          <div className="aiResults">
-            {aiResults.map((r) => (
-              <Link
-                key={r._id}
-                to={`/restaurant/${r._id}`}
-                className="aiCard"
-              >
-                <img
-                  src={
-                    r.aiMenuItemImage ||
-                    r.image ||
-                    DEFAULT_FOOD_IMAGE
-                  }
-                  alt={r.aiMenuItem || r.name}
-                  onError={(e) => {
-                    e.currentTarget.src = DEFAULT_FOOD_IMAGE;
-                  }}
-                />
-                <div>
-                  <h3>{r.name}</h3>
-                  {r.aiMenuItem && (
-                    <p>
-                      🍽️ <strong>{r.aiMenuItem}</strong> · ₹{r.aiPrice}
-                    </p>
-                  )}
-                  {r.aiReason && <p className="aiReason">💡 {r.aiReason}</p>}
-                  <p>⭐ {r.rating} · {r.deliveryTime} min</p>
-                  <p>{r.cuisine?.join(', ')}</p>
-                  <small>₹{r.priceForTwo || 400} for two</small>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
-
+      {/* =================================================
+          FOOD CATEGORIES
+      ================================================= */}
       <section className="categories">
         <h2>What are you craving?</h2>
         <div className="categoryRow">
@@ -850,6 +1093,9 @@ function Home() {
         </div>
       </section>
 
+      {/* =================================================
+          RESTAURANTS
+      ================================================= */}
       <section className="restaurantsSection">
         <div
           style={{
@@ -943,6 +1189,9 @@ function Home() {
         )}
       </section>
 
+      {/* =================================================
+          RESTAURANT MAP
+      ================================================= */}
       <RestaurantMap
         restaurants={nearbyRestaurants}
         selectedLocation={selectedLocation}
