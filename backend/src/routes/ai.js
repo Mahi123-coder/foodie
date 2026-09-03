@@ -1,27 +1,25 @@
 import 'dotenv/config';
 import { Router } from 'express';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 
 import Restaurant from '../models/Restaurant.js';
 import MenuItem from '../models/MenuItem.js';
+import Order from '../models/Order.js';
 
 const router = Router();
-
 
 // =============================================================
 // CONFIG
 // =============================================================
 
-const GEMINI_MODEL = 'gemini-3.6-flash';
-
+const GEMINI_MODEL = 'gemini-2.5-flash';
 
 // =============================================================
-// GEMINI AI
+// GEMINI AI CLIENT
 // =============================================================
 
 function getGeminiAI() {
   const apiKey = process.env.GEMINI_API_KEY;
-
   if (!apiKey || !apiKey.trim()) {
     return null;
   }
@@ -31,1449 +29,698 @@ function getGeminiAI() {
   });
 }
 
-
 // =============================================================
-// HELPERS
+// HELPERS FOR LEGACY SEARCH
 // =============================================================
 
 function normalizeText(value) {
-  return String(value || '')
-    .toLowerCase()
-    .trim();
+  return String(value || '').toLowerCase().trim();
 }
-
 
 function foodText(item) {
-  return [
-    item.name,
-    item.description,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
+  return [item.name, item.description].filter(Boolean).join(' ').toLowerCase();
 }
-
 
 function isVegItem(item) {
   return item.isVeg === true;
 }
 
-
 function isNonVegItem(item) {
   return item.isVeg === false;
 }
 
-
-// =============================================================
-// KEYWORD DETECTION
-// =============================================================
-
 function detectPreferences(query) {
-
   const text = normalizeText(query);
-
   return {
-
-    chicken:
-      /\bchicken\b/i.test(text),
-
-    mutton:
-      /\bmutton\b|\blamb\b/i.test(text),
-
-    fish:
-      /\bfish\b|\bsalmon\b|\btuna\b/i.test(text),
-
-    seafood:
-      /\bseafood\b|\bprawn\b|\bprawns\b|\bshrimp\b|\bcrab\b/i.test(text),
-
-    pizza:
-      /\bpizza\b/i.test(text),
-
-    burger:
-      /\bburger\b|\bburgers\b/i.test(text),
-
-    pasta:
-      /\bpasta\b/i.test(text),
-
-    biryani:
-      /\bbiryani\b/i.test(text),
-
-    salad:
-      /\bsalad\b/i.test(text),
-
-    vegetarian:
-      /\bvegetarian\b|\bveg\b|\bveggie\b/i.test(text),
-
-    nonVegetarian:
-      /\bnon[- ]?veg\b|\bnon[- ]?vegetarian\b|\bnonveg\b/i.test(text),
-
-    spicy:
-      /\bspicy\b|\bhot\b|\bfiery\b/i.test(text),
-
-    healthy:
-      /\bhealthy\b|\bhealthier\b|\bnutritious\b/i.test(text),
-
-    lowCarb:
-      /\blow[- ]?carb\b|\blow carbohydrates\b|\bless carbs\b/i.test(text),
-
-    highProtein:
-      /\bhigh[- ]?protein\b|\bhigh protein\b|\bprotein rich\b|\bprotein-rich\b/i.test(text),
-
-    sweet:
-      /\bsweet\b|\bdessert\b|\bdesserts\b/i.test(text),
-
-    breakfast:
-      /\bbreakfast\b/i.test(text),
-
-    lunch:
-      /\blunch\b/i.test(text),
-
-    dinner:
-      /\bdinner\b/i.test(text),
-
-    cheap:
-      /\bcheap\b|\baffordable\b|\bbudget\b|\binexpensive\b/i.test(text),
-
-    expensive:
-      /\bexpensive\b|\bpremium\b|\bluxury\b/i.test(text),
-
-    light:
-      /\blight\b|\blighter\b/i.test(text),
-
-    filling:
-      /\bfilling\b|\bheavy\b/i.test(text),
+    chicken: /\bchicken\b/i.test(text),
+    mutton: /\bmutton\b|\blamb\b/i.test(text),
+    fish: /\bfish\b|\bsalmon\b|\btuna\b/i.test(text),
+    seafood: /\bseafood\b|\bprawn\b|\bprawns\b|\bshrimp\b|\bcrab\b/i.test(text),
+    pizza: /\bpizza\b/i.test(text),
+    burger: /\bburger\b|\bburgers\b/i.test(text),
+    pasta: /\bpasta\b/i.test(text),
+    biryani: /\bbiryani\b/i.test(text),
+    salad: /\bsalad\b/i.test(text),
+    vegetarian: /\bvegetarian\b|\bveg\b|\bveggie\b/i.test(text),
+    nonVegetarian: /\bnon[- ]?veg\b|\bnon[- ]?vegetarian\b|\bnonveg\b/i.test(text),
+    spicy: /\bspicy\b|\bhot\b|\bfiery\b/i.test(text),
+    healthy: /\bhealthy\b|\bhealthier\b|\bnutritious\b/i.test(text),
+    lowCarb: /\blow[- ]?carb\b|\blow carbohydrates\b|\bless carbs\b/i.test(text),
+    highProtein: /\bhigh[- ]?protein\b|\bhigh protein\b|\bprotein rich\b|\bprotein-rich\b/i.test(text),
+    sweet: /\bsweet\b|\bdessert\b|\bdesserts\b/i.test(text),
+    cheap: /\bcheap\b|\baffordable\b|\bbudget\b|\binexpensive\b/i.test(text),
+    expensive: /\bexpensive\b|\bpremium\b|\bluxury\b/i.test(text),
+    light: /\blight\b|\blighter\b/i.test(text),
+    filling: /\bfilling\b|\bheavy\b/i.test(text),
   };
 }
 
-
-// =============================================================
-// LOCAL MATCHING
-// =============================================================
-
 function matchesStrongKeyword(item, preferences) {
-
   const text = foodText(item);
-
-  if (
-    preferences.chicken &&
-    !/\bchicken\b/i.test(text)
-  ) {
-    return false;
-  }
-
-  if (
-    preferences.mutton &&
-    !/\bmutton\b|\blamb\b/i.test(text)
-  ) {
-    return false;
-  }
-
-  if (
-    preferences.fish &&
-    !/\bfish\b|\bsalmon\b|\btuna\b/i.test(text)
-  ) {
-    return false;
-  }
-
-  if (
-    preferences.seafood &&
-    !/\bseafood\b|\bprawn\b|\bprawns\b|\bshrimp\b|\bcrab\b/i.test(text)
-  ) {
-    return false;
-  }
-
-  if (
-    preferences.pizza &&
-    !/\bpizza\b/i.test(text)
-  ) {
-    return false;
-  }
-
-  if (
-    preferences.burger &&
-    !/\bburger\b/i.test(text)
-  ) {
-    return false;
-  }
-
-  if (
-    preferences.pasta &&
-    !/\bpasta\b/i.test(text)
-  ) {
-    return false;
-  }
-
-  if (
-    preferences.biryani &&
-    !/\bbiryani\b/i.test(text)
-  ) {
-    return false;
-  }
-
-  if (
-    preferences.salad &&
-    !/\bsalad\b/i.test(text)
-  ) {
-    return false;
-  }
-
-  if (
-    preferences.vegetarian &&
-    !isVegItem(item)
-  ) {
-    return false;
-  }
-
-  if (
-    preferences.nonVegetarian &&
-    !isNonVegItem(item)
-  ) {
-    return false;
-  }
-
+  if (preferences.chicken && !/\bchicken\b/i.test(text)) return false;
+  if (preferences.mutton && !/\bmutton\b|\blamb\b/i.test(text)) return false;
+  if (preferences.fish && !/\bfish\b|\bsalmon\b|\btuna\b/i.test(text)) return false;
+  if (preferences.seafood && !/\bseafood\b|\bprawn\b|\bprawns\b|\bshrimp\b|\bcrab\b/i.test(text)) return false;
+  if (preferences.pizza && !/\bpizza\b/i.test(text)) return false;
+  if (preferences.burger && !/\bburger\b/i.test(text)) return false;
+  if (preferences.pasta && !/\bpasta\b/i.test(text)) return false;
+  if (preferences.biryani && !/\bbiryani\b/i.test(text)) return false;
+  if (preferences.salad && !/\bsalad\b/i.test(text)) return false;
+  if (preferences.vegetarian && !isVegItem(item)) return false;
+  if (preferences.nonVegetarian && !isNonVegItem(item)) return false;
   return true;
 }
 
-
-// =============================================================
-// LOCAL SCORE
-// =============================================================
-
 function calculateScore(item, query, preferences) {
-
   const text = foodText(item);
-
-  const queryWords =
-    normalizeText(query)
-      .split(/\s+/)
-      .filter(
-        (word) =>
-          word.length >= 3
-      );
-
+  const queryWords = normalizeText(query).split(/\s+/).filter((w) => w.length >= 3);
   let score = 0;
 
-
-  // -----------------------------------------------------------
-  // Exact query words
-  // -----------------------------------------------------------
-
   for (const word of queryWords) {
-
-    if (text.includes(word)) {
-      score += 10;
-    }
+    if (text.includes(word)) score += 10;
   }
-
-
-  // -----------------------------------------------------------
-  // Strong food matches
-  // -----------------------------------------------------------
-
-  if (
-    preferences.chicken &&
-    /\bchicken\b/i.test(text)
-  ) {
-    score += 50;
-  }
-
-  if (
-    preferences.mutton &&
-    /\bmutton\b|\blamb\b/i.test(text)
-  ) {
-    score += 50;
-  }
-
-  if (
-    preferences.fish &&
-    /\bfish\b|\bsalmon\b|\btuna\b/i.test(text)
-  ) {
-    score += 50;
-  }
-
-  if (
-    preferences.seafood &&
-    /\bprawn\b|\bprawns\b|\bshrimp\b|\bcrab\b|\bseafood\b/i.test(text)
-  ) {
-    score += 50;
-  }
-
-  if (
-    preferences.pizza &&
-    /\bpizza\b/i.test(text)
-  ) {
-    score += 50;
-  }
-
-  if (
-    preferences.burger &&
-    /\bburger\b/i.test(text)
-  ) {
-    score += 50;
-  }
-
-  if (
-    preferences.pasta &&
-    /\bpasta\b/i.test(text)
-  ) {
-    score += 50;
-  }
-
-  if (
-    preferences.biryani &&
-    /\bbiryani\b/i.test(text)
-  ) {
-    score += 50;
-  }
-
-  if (
-    preferences.salad &&
-    /\bsalad\b/i.test(text)
-  ) {
-    score += 50;
-  }
-
-
-  // -----------------------------------------------------------
-  // Protein
-  // -----------------------------------------------------------
-
-  if (preferences.highProtein) {
-
-    if (
-      /\bchicken\b|\begg\b|\beggs\b|\bfish\b|\btuna\b|\bprawn\b|\bshrimp\b|\bsteak\b|\bpaneer\b/i.test(text)
-    ) {
-      score += 30;
-    }
-
-    if (
-      /\bprotein\b|\bhigh protein\b|\bprotein-rich\b/i.test(text)
-    ) {
-      score += 30;
-    }
-  }
-
-
-  // -----------------------------------------------------------
-  // Low carb
-  // -----------------------------------------------------------
-
-  if (preferences.lowCarb) {
-
-    if (
-      /\bsalad\b|\bgrilled\b|\bgrill\b|\bchicken\b|\begg\b|\beggs\b|\bfish\b|\bsteak\b/i.test(text)
-    ) {
-      score += 25;
-    }
-
-    if (
-      /\bbread\b|\bbun\b|\bpasta\b|\brice\b|\bnoodles\b|\bwrap\b|\bfries\b|\bpotato\b/i.test(text)
-    ) {
-      score -= 15;
-    }
-  }
-
-
-  // -----------------------------------------------------------
-  // Healthy
-  // -----------------------------------------------------------
-
-  if (preferences.healthy) {
-
-    if (
-      /\bsalad\b|\bgrilled\b|\bsteamed\b|\bfresh\b|\bhealthy\b|\bprotein\b|\bvegetable\b|\bveggie\b/i.test(text)
-    ) {
-      score += 20;
-    }
-  }
-
-
-  // -----------------------------------------------------------
-  // Spicy
-  // -----------------------------------------------------------
-
-  if (preferences.spicy) {
-
-    if (
-      /\bspicy\b|\bhot\b|\bchilli\b|\bchili\b|\bfiery\b|\bmasala\b/i.test(text)
-    ) {
-      score += 25;
-    }
-  }
-
-
-  // -----------------------------------------------------------
-  // Sweet
-  // -----------------------------------------------------------
-
-  if (preferences.sweet) {
-
-    if (
-      /\bcake\b|\bpastry\b|\bice cream\b|\bicecream\b|\bdessert\b|\bbrownie\b|\bsweet\b|\bcookie\b|\bdonut\b|\bdoughnut\b/i.test(text)
-    ) {
-      score += 40;
-    }
-  }
-
-
-  // -----------------------------------------------------------
-  // Filling
-  // -----------------------------------------------------------
-
-  if (preferences.filling) {
-
-    if (
-      /\bbiryani\b|\bburger\b|\bpizza\b|\bthali\b|\bmeal\b|\bwrap\b|\broll\b|\bpasta\b/i.test(text)
-    ) {
-      score += 20;
-    }
-  }
-
-
-  // -----------------------------------------------------------
-  // Light
-  // -----------------------------------------------------------
-
-  if (preferences.light) {
-
-    if (
-      /\bsalad\b|\bsoup\b|\bgrilled\b|\bfresh\b/i.test(text)
-    ) {
-      score += 20;
-    }
-
-    if (
-      /\bburger\b|\bpizza\b|\bbiryani\b|\bfries\b/i.test(text)
-    ) {
-      score -= 10;
-    }
-  }
-
-
-  // -----------------------------------------------------------
-  // Price
-  // -----------------------------------------------------------
-
-  if (
-    preferences.cheap &&
-    typeof item.price === 'number'
-  ) {
-
-    if (item.price <= 300) {
-      score += 20;
-    } else if (item.price <= 500) {
-      score += 10;
-    } else {
-      score -= 10;
-    }
-  }
-
-
-  if (
-    preferences.expensive &&
-    typeof item.price === 'number'
-  ) {
-
-    if (item.price >= 700) {
-      score += 20;
-    }
-  }
-
+  if (preferences.chicken && /\bchicken\b/i.test(text)) score += 50;
+  if (preferences.mutton && /\bmutton\b|\blamb\b/i.test(text)) score += 50;
+  if (preferences.fish && /\bfish\b|\bsalmon\b|\btuna\b/i.test(text)) score += 50;
+  if (preferences.seafood && /\bprawn\b|\bprawns\b|\bshrimp\b|\bcrab\b|\bseafood\b/i.test(text)) score += 50;
+  if (preferences.pizza && /\bpizza\b/i.test(text)) score += 50;
+  if (preferences.burger && /\bburger\b/i.test(text)) score += 50;
+  if (preferences.pasta && /\bpasta\b/i.test(text)) score += 50;
+  if (preferences.biryani && /\bbiryani\b/i.test(text)) score += 50;
+  if (preferences.salad && /\bsalad\b/i.test(text)) score += 50;
+  if (preferences.highProtein && /\bprotein\b|\begg\b|\bpaneer\b|\bchicken\b/i.test(text)) score += 30;
+  if (preferences.spicy && /\bspicy\b|\bhot\b|\bchilli\b|\bmasala\b/i.test(text)) score += 25;
+  if (preferences.cheap && typeof item.price === 'number' && item.price <= 300) score += 20;
 
   return score;
 }
 
-
-// =============================================================
-// CREATE RESTAURANT MAP
-// =============================================================
-
 function createRestaurantMap(restaurants) {
-
   const map = new Map();
-
   for (const restaurant of restaurants) {
-
-    map.set(
-      String(restaurant._id),
-      restaurant
-    );
+    map.set(String(restaurant._id), restaurant);
   }
-
   return map;
 }
 
-
-// =============================================================
-// CREATE AVAILABLE FOODS
-// =============================================================
-
-function createAvailableFoods(
-  restaurants,
-  menuItems
-) {
-
-  const restaurantMap =
-    createRestaurantMap(
-      restaurants
-    );
-
+function createAvailableFoods(restaurants, menuItems) {
+  const restaurantMap = createRestaurantMap(restaurants);
   const availableFoods = [];
 
   for (const item of menuItems) {
-
-    const restaurant =
-      restaurantMap.get(
-        String(item.restaurant)
-      );
-
-    if (!restaurant) {
-      continue;
-    }
+    const restaurant = restaurantMap.get(String(item.restaurant));
+    if (!restaurant) continue;
 
     availableFoods.push({
-
-      restaurantId:
-        String(restaurant._id),
-
-      restaurantName:
-        restaurant.name,
-
-      cuisine:
-        restaurant.cuisine || [],
-
-      restaurantRating:
-        restaurant.rating || 0,
-
-      restaurantLocation:
-        restaurant.location || '',
-
-      deliveryTime:
-        restaurant.deliveryTime || null,
-
-      priceForTwo:
-        restaurant.priceForTwo || null,
-
-      menuItemId:
-        String(item._id),
-
-      menuItemName:
-        item.name,
-
-      description:
-        item.description || '',
-
-      price:
-        item.price,
-
-      isVeg:
-        item.isVeg,
-
-      image:
-        item.image || null,
-
+      restaurantId: String(restaurant._id),
+      restaurantName: restaurant.name,
+      cuisine: restaurant.cuisine || [],
+      restaurantRating: restaurant.rating || 0,
+      restaurantLocation: restaurant.location || '',
+      deliveryTime: restaurant.deliveryTime || null,
+      priceForTwo: restaurant.priceForTwo || null,
+      menuItemId: String(item._id),
+      menuItemName: item.name,
+      description: item.description || '',
+      price: item.price,
+      isVeg: item.isVeg,
+      image: item.image || null,
     });
   }
-
   return availableFoods;
 }
 
-
-// =============================================================
-// GET LOCAL CANDIDATES
-// =============================================================
-
-function getCandidates(
-  availableFoods,
-  query
-) {
-
-  const preferences =
-    detectPreferences(query);
-
-
-  // -----------------------------------------------------------
-  // First: strong filtering
-  // -----------------------------------------------------------
-
+function getCandidates(availableFoods, query) {
+  const preferences = detectPreferences(query);
   const hasStrongPreference =
-    preferences.chicken ||
-    preferences.mutton ||
-    preferences.fish ||
-    preferences.seafood ||
-    preferences.pizza ||
-    preferences.burger ||
-    preferences.pasta ||
-    preferences.biryani ||
-    preferences.salad ||
-    preferences.vegetarian ||
-    preferences.nonVegetarian;
+    preferences.chicken || preferences.mutton || preferences.fish ||
+    preferences.seafood || preferences.pizza || preferences.burger ||
+    preferences.pasta || preferences.biryani || preferences.salad ||
+    preferences.vegetarian || preferences.nonVegetarian;
 
+  let candidates = hasStrongPreference
+    ? availableFoods.filter((item) => matchesStrongKeyword(item, preferences))
+    : [...availableFoods];
 
-  let candidates;
+  candidates = candidates
+    .map((item) => ({ item, score: calculateScore(item, query, preferences) }))
+    .sort((a, b) => b.score - a.score);
 
-
-  if (hasStrongPreference) {
-
-    candidates =
-      availableFoods.filter(
-        (item) =>
-          matchesStrongKeyword(
-            item,
-            preferences
-          )
-      );
-
-  } else {
-
-    candidates =
-      [...availableFoods];
+  if (candidates.length === 0) {
+    candidates = availableFoods
+      .map((item) => ({ item, score: calculateScore(item, query, preferences) }))
+      .sort((a, b) => b.score - a.score);
   }
 
-
-  // -----------------------------------------------------------
-  // Score candidates
-  // -----------------------------------------------------------
-
-  candidates =
-    candidates
-      .map((item) => ({
-        item,
-
-        score:
-          calculateScore(
-            item,
-            query,
-            preferences
-          ),
-      }))
-      .sort(
-        (a, b) =>
-          b.score - a.score
-      );
-
-
-  // -----------------------------------------------------------
-  // If strong filtering returned nothing,
-  // fallback to all items.
-  // -----------------------------------------------------------
-
-  if (
-    candidates.length === 0
-  ) {
-
-    candidates =
-      availableFoods
-        .map((item) => ({
-          item,
-
-          score:
-            calculateScore(
-              item,
-              query,
-              preferences
-            ),
-        }))
-        .sort(
-          (a, b) =>
-            b.score - a.score
-        );
-  }
-
-
-  // -----------------------------------------------------------
-  // Only send a SMALL number to Gemini
-  // -----------------------------------------------------------
-
-  return candidates
-    .slice(0, 15)
-    .map(
-      ({ item }) =>
-        item
-    );
+  return candidates.slice(0, 15).map(({ item }) => item);
 }
 
-
 // =============================================================
-// GEMINI RECOMMENDATION
+// DETERMINISTIC AGENT TOOLS (OPERATES ON MONGODB DIRECTLY)
 // =============================================================
 
-async function askGemini(
-  ai,
-  query,
-  candidates
-) {
+async function toolSearchCatalog({ query, maxPrice, isVeg, restaurantId }) {
+  const filter = {};
 
-  const candidateDatabase =
-    candidates.map(
-      (item) => ({
+  if (typeof isVeg === 'boolean') {
+    filter.isVeg = isVeg;
+  }
 
-        menuItemId:
-          item.menuItemId,
+  if (maxPrice && Number(maxPrice) > 0) {
+    filter.price = { $lte: Number(maxPrice) };
+  }
 
-        restaurantId:
-          item.restaurantId,
+  if (restaurantId) {
+    filter.restaurant = restaurantId;
+  }
 
-        restaurantName:
-          item.restaurantName,
+  if (query && query.trim()) {
+    filter.$or = [
+      { name: { $regex: query.trim(), $options: 'i' } },
+      { description: { $regex: query.trim(), $options: 'i' } },
+      { category: { $regex: query.trim(), $options: 'i' } }
+    ];
+  }
 
-        menuItemName:
-          item.menuItemName,
+  const items = await MenuItem.find(filter)
+    .populate('restaurant', 'name location rating deliveryTime')
+    .limit(12)
+    .lean();
 
-        description:
-          item.description,
+  return items.map((it) => ({
+    itemId: it._id.toString(),
+    name: it.name,
+    price: it.price,
+    isVeg: Boolean(it.isVeg),
+    category: it.category || 'General',
+    description: it.description || '',
+    restaurantId: it.restaurant?._id?.toString(),
+    restaurantName: it.restaurant?.name || 'Partner Restaurant'
+  }));
+}
 
-        price:
-          item.price,
+async function toolInspectAndOptimizeCart({ cartItems }) {
+  if (!cartItems || !cartItems.length) {
+    return {
+      currentTotal: 0,
+      optimizedTotal: 0,
+      savings: 0,
+      modifications: [],
+      explanation: 'Cart is empty. Add items to discover bundle optimizations.'
+    };
+  }
 
-        isVeg:
-          item.isVeg,
+  const itemIds = cartItems.map((c) => c.menuItem || c._id);
+  const dbItems = await MenuItem.find({ _id: { $in: itemIds } }).lean();
 
-        cuisine:
-          item.cuisine,
-
-        rating:
-          item.restaurantRating,
-
-      })
+  let realTotal = 0;
+  cartItems.forEach((cartItem) => {
+    const matched = dbItems.find(
+      (db) => db._id.toString() === (cartItem.menuItem || cartItem._id).toString()
     );
+    const price = matched ? matched.price : cartItem.price;
+    realTotal += Number(price) * Number(cartItem.quantity || 1);
+  });
 
+  let savings = 0;
+  const modifications = [];
 
-  const prompt = `
+  // Dynamic threshold: 10% bundle savings if order >= ₹600
+  if (realTotal >= 600) {
+    savings = Math.round(realTotal * 0.1);
+    modifications.push({
+      type: 'BUNDLE_DISCOUNT',
+      description: 'Applied 10% Foodie Smart Combo Saver on orders above ₹600',
+      discountAmount: savings
+    });
+  }
+
+  return {
+    currentTotal: realTotal,
+    optimizedTotal: realTotal - savings,
+    savings,
+    modifications,
+    explanation:
+      savings > 0
+        ? `Applied dynamic meal bundle optimization to save you ₹${savings}.`
+        : 'Your cart is already at optimal value with no redundant items detected.'
+  };
+}
+
+async function toolGenerateGroupMealPlan({ totalPeople, vegCount, maxBudget, restaurantId }) {
+  const people = Number(totalPeople) || 2;
+  const veg = Number(vegCount) || 0;
+  const nonVeg = Math.max(0, people - veg);
+  const budget = Number(maxBudget) || 2000;
+
+  const filter = {};
+  if (restaurantId) filter.restaurant = restaurantId;
+
+  const catalog = await MenuItem.find(filter)
+    .populate('restaurant', 'name deliveryTime')
+    .lean();
+
+  if (!catalog.length) {
+    return { error: 'No menu items available matching group criteria.' };
+  }
+
+  const vegItems = catalog.filter((i) => i.isVeg).sort((a, b) => a.price - b.price);
+  const nonVegItems = catalog.filter((i) => !i.isVeg).sort((a, b) => a.price - b.price);
+
+  const proposedItems = [];
+  let allocatedTotal = 0;
+
+  // Allocate vegetarian portions
+  if (veg > 0) {
+    const targetVegSpend = (budget / people) * veg;
+    let vegSpend = 0;
+    for (const item of vegItems) {
+      if (vegSpend + item.price <= targetVegSpend && proposedItems.length < veg * 2) {
+        proposedItems.push({
+          itemId: item._id.toString(),
+          name: item.name,
+          price: item.price,
+          quantity: 1,
+          isVeg: true,
+          restaurantId: item.restaurant?._id?.toString(),
+          restaurantName: item.restaurant?.name
+        });
+        vegSpend += item.price;
+        allocatedTotal += item.price;
+      }
+    }
+  }
+
+  // Allocate non-veg portions
+  if (nonVeg > 0) {
+    const targetNonVegSpend = budget - allocatedTotal;
+    let nonVegSpend = 0;
+    const pool = nonVegItems.length ? nonVegItems : vegItems;
+    for (const item of pool) {
+      if (nonVegSpend + item.price <= targetNonVegSpend && proposedItems.length < people * 2) {
+        proposedItems.push({
+          itemId: item._id.toString(),
+          name: item.name,
+          price: item.price,
+          quantity: 1,
+          isVeg: item.isVeg,
+          restaurantId: item.restaurant?._id?.toString(),
+          restaurantName: item.restaurant?.name
+        });
+        nonVegSpend += item.price;
+        allocatedTotal += item.price;
+      }
+    }
+  }
+
+  return {
+    totalPeople: people,
+    vegPortions: veg,
+    nonVegPortions: nonVeg,
+    proposedItems,
+    calculatedTotal: allocatedTotal,
+    budgetRemaining: budget - allocatedTotal,
+    explanation: `Constructed balanced meal for ${people} people (${veg} veg, ${nonVeg} non-veg) totaling ₹${allocatedTotal} within your ₹${budget} budget.`
+  };
+}
+
+// Tool definitions for Gemini Agent
+const agentTools = [
+  {
+    functionDeclarations: [
+      {
+        name: 'searchCatalog',
+        description: 'Search available menu items across partner restaurants matching cuisine, spice, budget, or name.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            query: { type: Type.STRING, description: 'Search keywords like spicy, pizza, burger, biryani' },
+            maxPrice: { type: Type.NUMBER, description: 'Maximum price threshold per dish in INR' },
+            isVeg: { type: Type.BOOLEAN, description: 'True for purely vegetarian items' },
+            restaurantId: { type: Type.STRING, description: 'Optional specific restaurant ID' }
+          }
+        }
+      },
+      {
+        name: 'inspectAndOptimizeCart',
+        description: 'Analyze current cart items for bundle discounts, redundant items, and cost optimization.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            cartItems: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  menuItem: { type: Type.STRING },
+                  name: { type: Type.STRING },
+                  price: { type: Type.NUMBER },
+                  quantity: { type: Type.NUMBER }
+                }
+              },
+              description: 'List of items currently in cart'
+            }
+          },
+          required: ['cartItems']
+        }
+      },
+      {
+        name: 'generateGroupMealPlan',
+        description: 'Construct a group order combination adhering to group size, vegetarian dietary constraints, and total budget.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            totalPeople: { type: Type.NUMBER, description: 'Total number of members ordering' },
+            vegCount: { type: Type.NUMBER, description: 'Number of strict vegetarians in group' },
+            maxBudget: { type: Type.NUMBER, description: 'Hard total budget in INR' },
+            restaurantId: { type: Type.STRING, description: 'Optional target restaurant ID' }
+          },
+          required: ['totalPeople', 'maxBudget']
+        }
+      }
+    ]
+  }
+];
+
+// =============================================================
+// NEW ROUTE: AGENTIC COMMERCE (TRACK 01)
+// POST /api/ai/agent
+// =============================================================
+
+router.post('/agent', async (req, res) => {
+  const auditLogs = [];
+  const addAudit = (step, detail) => {
+    const timestamp = new Date().toLocaleTimeString('en-IN', { hour12: false });
+    auditLogs.push({ time: timestamp, step, detail });
+  };
+
+  try {
+    const { prompt, cart = [], activeGroupCode = null } = req.body;
+
+    if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+      return res.status(400).json({ message: 'A natural language query is required.' });
+    }
+
+    addAudit('Request Ingestion', `User input: "${prompt.trim()}"`);
+
+    const ai = getGeminiAI();
+    if (!ai) {
+      addAudit('Error', 'GEMINI_API_KEY missing on backend');
+      return res.status(500).json({
+        message: 'Gemini AI is not configured on the backend.',
+        auditTrail: auditLogs
+      });
+    }
+
+    let groupOrderContext = null;
+    if (activeGroupCode) {
+      groupOrderContext = await Order.findOne({
+        groupCode: activeGroupCode.toUpperCase(),
+        isGroupOrder: true
+      })
+        .populate('restaurant', 'name')
+        .lean();
+
+      if (groupOrderContext) {
+        addAudit('Context Binding', `Bound active group room #${activeGroupCode}`);
+      }
+    }
+
+    const systemInstruction = `
+You are the Foodie AI Commerce Agent for Razorpay Buildathon Track 01.
+Your duty is to assist users from intent to checkout using REAL catalog items.
+RULES:
+1. NEVER invent dishes or prices. Only use data returned by the provided tools.
+2. If the user asks for food, search the catalog first via searchCatalog.
+3. If the user wants to order for a group, call generateGroupMealPlan.
+4. If the user wants to optimize their cart or save money, call inspectAndOptimizeCart.
+5. Provide concise, friendly explanations highlighting spice, dietary constraints, and budget fit.
+Current Cart Context: ${JSON.stringify(cart)}
+Group Room Context: ${groupOrderContext ? JSON.stringify(groupOrderContext) : 'None'}
+`;
+
+    addAudit('Intent Classification', 'Evaluating constraints (budget, veg/non-veg, group size, cart context)');
+
+    const response = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: prompt,
+      config: {
+        systemInstruction,
+        tools: agentTools,
+        temperature: 0.2
+      }
+    });
+
+    let finalAssistantText = '';
+    let toolCallResult = null;
+    let proposedActions = null;
+
+    if (response.functionCalls && response.functionCalls.length > 0) {
+      const call = response.functionCalls[0];
+      addAudit('Tool Invoked', `Executing tool: ${call.name}`);
+
+      if (call.name === 'searchCatalog') {
+        toolCallResult = await toolSearchCatalog(call.args);
+        addAudit('Catalog Query', `Found ${toolCallResult.length} matching dishes in MongoDB`);
+      } else if (call.name === 'inspectAndOptimizeCart') {
+        toolCallResult = await toolInspectAndOptimizeCart({
+          cartItems: call.args.cartItems || cart
+        });
+        addAudit('Cart Optimization', `Evaluated savings: ₹${toolCallResult.savings}`);
+      } else if (call.name === 'generateGroupMealPlan') {
+        toolCallResult = await toolGenerateGroupMealPlan(call.args);
+        addAudit('Group Plan Engine', `Composed meal for ${call.args.totalPeople} people totaling ₹${toolCallResult.calculatedTotal}`);
+      }
+
+      const followUp = await ai.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: [
+          { role: 'user', parts: [{ text: prompt }] },
+          { role: 'model', parts: [{ functionCall: call }] },
+          {
+            role: 'user',
+            parts: [
+              {
+                functionResponse: {
+                  name: call.name,
+                  response: { result: toolCallResult }
+                }
+              }
+            ]
+          }
+        ],
+        config: { systemInstruction }
+      });
+
+      finalAssistantText = followUp.text;
+
+      if (call.name === 'generateGroupMealPlan' && toolCallResult.proposedItems) {
+        proposedActions = {
+          type: 'POPULATE_GROUP_ORDER',
+          items: toolCallResult.proposedItems,
+          totalAmount: toolCallResult.calculatedTotal,
+          requiresApproval: true
+        };
+      } else if (call.name === 'searchCatalog' && toolCallResult.length > 0) {
+        proposedActions = {
+          type: 'RECOMMENDATION_LIST',
+          items: toolCallResult,
+          requiresApproval: false
+        };
+      } else if (call.name === 'inspectAndOptimizeCart' && toolCallResult.savings > 0) {
+        proposedActions = {
+          type: 'APPLY_CART_OPTIMIZATION',
+          savings: toolCallResult.savings,
+          newTotal: toolCallResult.optimizedTotal,
+          requiresApproval: true
+        };
+      }
+    } else {
+      finalAssistantText = response.text;
+      addAudit('Direct Response', 'Completed conversational response without external tool calls');
+    }
+
+    addAudit('Decision Completed', 'Awaiting human authorization for any financial operations');
+
+    return res.json({
+      reply: finalAssistantText,
+      data: toolCallResult,
+      proposedActions,
+      auditTrail: auditLogs
+    });
+  } catch (error) {
+    console.error('Agent processing error:', error);
+    addAudit('Error Encountered', error.message || 'Processing failed');
+    return res.status(500).json({
+      message: 'Agent could not complete request.',
+      error: error.message,
+      auditTrail: auditLogs
+    });
+  }
+});
+
+// =============================================================
+// LEGACY ROUTE: BACKWARD COMPATIBLE RECOMMENDATION
+// POST /api/ai/recommend
+// =============================================================
+
+router.post('/recommend', async (req, res) => {
+  const requestStart = Date.now();
+
+  try {
+    const { query } = req.body;
+
+    if (typeof query !== 'string' || !query.trim()) {
+      return res.status(400).json({
+        message: 'Please tell me what you are looking for.',
+        recommendations: [],
+      });
+    }
+
+    const cleanQuery = query.trim();
+    const ai = getGeminiAI();
+
+    if (!ai) {
+      return res.status(500).json({
+        message: 'Gemini AI is not configured on the backend. Please check GEMINI_API_KEY in Render Environment Variables.',
+        recommendations: [],
+      });
+    }
+
+    const restaurants = await Restaurant.find({}).lean();
+    const menuItems = await MenuItem.find({}).lean();
+
+    if (menuItems.length === 0) {
+      return res.json({
+        message: 'There are no menu items available yet. Please add some dishes from the admin panel. 🍽️',
+        recommendations: [],
+      });
+    }
+
+    const availableFoods = createAvailableFoods(restaurants, menuItems);
+    if (availableFoods.length === 0) {
+      return res.json({
+        message: 'There are no valid menu items connected to restaurants yet. 🍽️',
+        recommendations: [],
+      });
+    }
+
+    const candidates = getCandidates(availableFoods, cleanQuery);
+    if (candidates.length === 0) {
+      return res.json({
+        message: `I couldn't find a suitable match for "${cleanQuery}". Try another food or preference. 🤔`,
+        recommendations: [],
+      });
+    }
+
+    const candidateDatabase = candidates.map((item) => ({
+      menuItemId: item.menuItemId,
+      restaurantId: item.restaurantId,
+      restaurantName: item.restaurantName,
+      menuItemName: item.menuItemName,
+      description: item.description,
+      price: item.price,
+      isVeg: item.isVeg,
+      cuisine: item.cuisine,
+      rating: item.restaurantRating,
+    }));
+
+    const prompt = `
 You are a fast food recommendation engine.
-
-USER REQUEST:
-"${query.trim()}"
-
-CANDIDATE MENU ITEMS:
-${JSON.stringify(candidateDatabase)}
-
+USER REQUEST: "${cleanQuery}"
+CANDIDATE MENU ITEMS: ${JSON.stringify(candidateDatabase)}
 Rules:
-
 1. ONLY choose items from the candidate list.
-
-2. NEVER invent a restaurant.
-
-3. NEVER invent a menu item.
-
-4. NEVER invent an ID.
-
-5. NEVER invent a price.
-
-6. Use the exact menuItemId from the candidate list.
-
-7. Use the exact restaurantId from the candidate list.
-
-8. Recommend at most 5 items.
-
-9. Do not duplicate menu items.
-
-10. If the request says vegetarian, choose only isVeg=true.
-
-11. If the request says non-vegetarian, choose only isVeg=false.
-
-12. Match the user's request using the menu item name and description.
-
-13. Do not claim something is healthy, spicy, high-protein,
-low-carb, etc. unless the item name or description reasonably
-supports that claim.
-
-14. Keep each reason short.
-
-15. If nothing matches, return an empty recommendations array.
-
+2. NEVER invent a restaurant, item, ID, or price.
+3. Recommend at most 5 items.
+4. If the request says vegetarian, choose only isVeg=true.
 Return JSON only.
 `;
 
-
-  const response =
-    await ai.models.generateContent({
-
-      model:
-        GEMINI_MODEL,
-
-      contents:
-        prompt,
-
+    const response = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: prompt,
       config: {
-
-        responseMimeType:
-          'application/json',
-
+        responseMimeType: 'application/json',
         responseSchema: {
-
           type: 'object',
-
           properties: {
-
             recommendations: {
-
               type: 'array',
-
               items: {
-
                 type: 'object',
-
                 properties: {
-
-                  menuItemId: {
-                    type: 'string',
-                  },
-
-                  restaurantId: {
-                    type: 'string',
-                  },
-
-                  reason: {
-                    type: 'string',
-                  },
-
+                  menuItemId: { type: 'string' },
+                  restaurantId: { type: 'string' },
+                  reason: { type: 'string' },
                 },
-
-                required: [
-                  'menuItemId',
-                  'restaurantId',
-                  'reason',
-                ],
+                required: ['menuItemId', 'restaurantId', 'reason'],
               },
             },
-
-            message: {
-              type: 'string',
-            },
-
+            message: { type: 'string' },
           },
-
-          required: [
-            'recommendations',
-            'message',
-          ],
+          required: ['recommendations', 'message'],
         },
-
-        // IMPORTANT:
-        // This is a food recommender, not a complex reasoning task.
-        // Lower thinking reduces latency.
-        thinkingConfig: {
-          thinkingLevel: 'low',
-        },
-
-        // Prevent unnecessarily long responses.
         maxOutputTokens: 800,
-
       },
     });
 
-
-  const responseText =
-    response.text?.trim();
-
-
-  if (!responseText) {
-    throw new Error(
-      'Gemini returned an empty response.'
-    );
-  }
-
-
-  return JSON.parse(
-    responseText
-  );
-}
-
-
-// =============================================================
-// RECOMMENDATION ROUTE
-// =============================================================
-
-router.post(
-  '/recommend',
-  async (req, res) => {
-
-    const requestStart =
-      Date.now();
-
-
-    try {
-
-      // =======================================================
-      // GET QUERY
-      // =======================================================
-
-      const { query } =
-        req.body;
-
-
-      if (
-        typeof query !== 'string' ||
-        !query.trim()
-      ) {
-
-        return res.status(400).json({
-
-          message:
-            'Please tell me what you are looking for.',
-
-          recommendations: [],
-
-        });
-      }
-
-
-      const cleanQuery =
-        query.trim();
-
-
-      console.log(
-        '\n======================================'
-      );
-
-      console.log(
-        'AI recommendation request:',
-        cleanQuery
-      );
-
-      console.log(
-        '======================================'
-      );
-
-
-      // =======================================================
-      // GET GEMINI
-      // =======================================================
-
-      const ai =
-        getGeminiAI();
-
-
-      console.log(
-        'Gemini API key available:',
-        Boolean(
-          process.env.GEMINI_API_KEY
-        )
-      );
-
-
-      if (!ai) {
-
-        console.error(
-          'GEMINI_API_KEY is missing.'
-        );
-
-        return res.status(500).json({
-
-          message:
-            'Gemini AI is not configured on the backend. Please check GEMINI_API_KEY in Render Environment Variables.',
-
-          recommendations: [],
-
-        });
-      }
-
-
-      // =======================================================
-      // LOAD DATABASE
-      // =======================================================
-
-      console.time(
-        'MongoDB restaurants'
-      );
-
-      const restaurants =
-        await Restaurant
-          .find({})
-          .lean();
-
-      console.timeEnd(
-        'MongoDB restaurants'
-      );
-
-
-      console.time(
-        'MongoDB menu items'
-      );
-
-      const menuItems =
-        await MenuItem
-          .find({})
-          .lean();
-
-      console.timeEnd(
-        'MongoDB menu items'
-      );
-
-
-      console.log(
-        'Restaurants:',
-        restaurants.length
-      );
-
-      console.log(
-        'Menu items:',
-        menuItems.length
-      );
-
-
-      // =======================================================
-      // NO MENU
-      // =======================================================
-
-      if (
-        menuItems.length === 0
-      ) {
-
-        return res.json({
-
-          message:
-            'There are no menu items available yet. Please add some dishes from the admin panel. 🍽️',
-
-          recommendations: [],
-
-        });
-      }
-
-
-      // =======================================================
-      // BUILD AVAILABLE FOODS
-      // =======================================================
-
-      console.time(
-        'Build available foods'
-      );
-
-      const availableFoods =
-        createAvailableFoods(
-          restaurants,
-          menuItems
-        );
-
-      console.timeEnd(
-        'Build available foods'
-      );
-
-
-      console.log(
-        'Available foods:',
-        availableFoods.length
-      );
-
-
-      if (
-        availableFoods.length === 0
-      ) {
-
-        return res.json({
-
-          message:
-            'There are no valid menu items connected to restaurants yet. Please check your menu data. 🍽️',
-
-          recommendations: [],
-
-        });
-      }
-
-
-      // =======================================================
-      // LOCAL CANDIDATE SEARCH
-      // =======================================================
-
-      console.time(
-        'Local candidate search'
-      );
-
-      const candidates =
-        getCandidates(
-          availableFoods,
-          cleanQuery
-        );
-
-      console.timeEnd(
-        'Local candidate search'
-      );
-
-
-      console.log(
-        'Candidates sent to Gemini:',
-        candidates.length
-      );
-
-
-      // =======================================================
-      // IF NO CANDIDATES
-      // =======================================================
-
-      if (
-        candidates.length === 0
-      ) {
-
-        return res.json({
-
-          message:
-            `I couldn't find a suitable match for "${cleanQuery}". Try another food or preference. 🤔`,
-
-          recommendations: [],
-
-        });
-      }
-
-
-      // =======================================================
-      // GEMINI
-      // =======================================================
-
-      console.time(
-        'Gemini API'
-      );
-
-
-      let aiResult;
-
-
-      try {
-
-        aiResult =
-          await askGemini(
-            ai,
-            cleanQuery,
-            candidates
-          );
-
-      } catch (geminiError) {
-
-        console.timeEnd(
-          'Gemini API'
-        );
-
-
-        console.error(
-          'Gemini API error:'
-        );
-
-        console.error(
-          geminiError
-        );
-
-
-        return res.status(500).json({
-
-          message:
-            'Gemini AI could not process your request right now. Please try again.',
-
-          recommendations: [],
-
-        });
-      }
-
-
-      console.timeEnd(
-        'Gemini API'
-      );
-
-
-      console.log(
-        'Gemini response:',
-        aiResult
-      );
-
-
-      // =======================================================
-      // VALIDATE AI RESPONSE
-      // =======================================================
-
-      console.time(
-        'Validate recommendations'
-      );
-
-
-      if (
-        !aiResult ||
-        !Array.isArray(
-          aiResult.recommendations
-        )
-      ) {
-
-        console.timeEnd(
-          'Validate recommendations'
-        );
-
-
-        return res.json({
-
-          message:
-            'I could not find suitable recommendations for your request. 🤔',
-
-          recommendations: [],
-
-        });
-      }
-
-
-      // -------------------------------------------------------
-      // Create maps for O(1) lookup
-      // -------------------------------------------------------
-
-      const menuMap =
-        new Map();
-
-      for (
-        const item
-        of menuItems
-      ) {
-
-        menuMap.set(
-          String(item._id),
-          item
-        );
-      }
-
-
-      const restaurantMap =
-        createRestaurantMap(
-          restaurants
-        );
-
-
-      const validatedRecommendations =
-        [];
-
-      const seenMenuItems =
-        new Set();
-
-
-      // =======================================================
-      // VALIDATE EACH RESULT
-      // =======================================================
-
-      for (
-        const recommendation
-        of aiResult.recommendations
-      ) {
-
-        if (
-          !recommendation ||
-          !recommendation.menuItemId ||
-          !recommendation.restaurantId
-        ) {
-          continue;
-        }
-
-
-        const menuItem =
-          menuMap.get(
-            String(
-              recommendation.menuItemId
-            )
-          );
-
-
-        const restaurant =
-          restaurantMap.get(
-            String(
-              recommendation.restaurantId
-            )
-          );
-
-
-        // -----------------------------------------------------
-        // INVALID IDS
-        // -----------------------------------------------------
-
-        if (
-          !menuItem ||
-          !restaurant
-        ) {
-          continue;
-        }
-
-
-        // -----------------------------------------------------
-        // VERIFY RELATIONSHIP
-        // -----------------------------------------------------
-
-        if (
-          String(
-            menuItem.restaurant
-          ) !==
-          String(
-            restaurant._id
-          )
-        ) {
-          continue;
-        }
-
-
-        // -----------------------------------------------------
-        // DUPLICATE
-        // -----------------------------------------------------
-
-        const menuKey =
-          String(
-            menuItem._id
-          );
-
-
-        if (
-          seenMenuItems.has(
-            menuKey
-          )
-        ) {
-          continue;
-        }
-
-
-        seenMenuItems.add(
-          menuKey
-        );
-
-
-        // -----------------------------------------------------
-        // RETURN REAL DATABASE DATA
-        // -----------------------------------------------------
-
-        validatedRecommendations.push({
-
-          restaurantId:
-            restaurant._id,
-
-          restaurantName:
-            restaurant.name,
-
-          restaurantImage:
-            restaurant.image ||
-            null,
-
-          restaurantRating:
-            restaurant.rating ||
-            0,
-
-          cuisine:
-            restaurant.cuisine ||
-            [],
-
-          location:
-            restaurant.location ||
-            '',
-
-          deliveryTime:
-            restaurant.deliveryTime ||
-            null,
-
-          priceForTwo:
-            restaurant.priceForTwo ||
-            null,
-
-          menuItemId:
-            menuItem._id,
-
-          menuItemName:
-            menuItem.name,
-
-          menuItemDescription:
-            menuItem.description ||
-            '',
-
-          price:
-            menuItem.price,
-
-          isVeg:
-            menuItem.isVeg,
-
-          reason:
-            typeof recommendation.reason === 'string'
-              ? recommendation.reason
-              : 'This dish matches your request.',
-
-        });
-
-
-        if (
-          validatedRecommendations.length >= 5
-        ) {
-          break;
-        }
-      }
-
-
-      console.timeEnd(
-        'Validate recommendations'
-      );
-
-
-      // =======================================================
-      // NO VALID RESULTS
-      // =======================================================
-
-      if (
-        validatedRecommendations.length === 0
-      ) {
-
-        return res.json({
-
-          message:
-            `I couldn't find a suitable match for "${cleanQuery}". Try another food or preference. 🤔`,
-
-          recommendations: [],
-
-        });
-      }
-
-
-      // =======================================================
-      // SUCCESS
-      // =======================================================
-
-      const totalTime =
-        Date.now() -
-        requestStart;
-
-
-      console.log(
-        `Total AI request time: ${totalTime} ms`
-      );
-
-
-      console.log(
-        'Recommendations returned:',
-        validatedRecommendations.length
-      );
-
-
-      return res.json({
-
-        message:
-          typeof aiResult.message === 'string' &&
-          aiResult.message.trim()
-            ? aiResult.message
-            : `I found ${validatedRecommendations.length} great options for you! 🍽️`,
-
-        recommendations:
-          validatedRecommendations,
-
+    const responseText = response.text?.trim();
+    if (!responseText) throw new Error('Gemini returned an empty response.');
+    const aiResult = JSON.parse(responseText);
+
+    const menuMap = new Map();
+    for (const item of menuItems) menuMap.set(String(item._id), item);
+    const restaurantMap = createRestaurantMap(restaurants);
+
+    const validatedRecommendations = [];
+    const seenMenuItems = new Set();
+
+    for (const rec of aiResult.recommendations || []) {
+      if (!rec?.menuItemId || !rec?.restaurantId) continue;
+
+      const menuItem = menuMap.get(String(rec.menuItemId));
+      const restaurant = restaurantMap.get(String(rec.restaurantId));
+
+      if (!menuItem || !restaurant) continue;
+      if (String(menuItem.restaurant) !== String(restaurant._id)) continue;
+
+      const menuKey = String(menuItem._id);
+      if (seenMenuItems.has(menuKey)) continue;
+      seenMenuItems.add(menuKey);
+
+      validatedRecommendations.push({
+        restaurantId: restaurant._id,
+        restaurantName: restaurant.name,
+        restaurantImage: restaurant.image || null,
+        restaurantRating: restaurant.rating || 0,
+        cuisine: restaurant.cuisine || [],
+        location: restaurant.location || '',
+        deliveryTime: restaurant.deliveryTime || null,
+        priceForTwo: restaurant.priceForTwo || null,
+        menuItemId: menuItem._id,
+        menuItemName: menuItem.name,
+        menuItemDescription: menuItem.description || '',
+        price: menuItem.price,
+        isVeg: menuItem.isVeg,
+        reason: rec.reason || 'This dish matches your request.',
       });
 
-    } catch (error) {
-
-      console.error(
-        'AI recommendation route error:'
-      );
-
-      console.error(
-        error
-      );
-
-
-      return res.status(500).json({
-
-        message:
-          error.message ||
-          'Could not generate recommendations.',
-
-        recommendations: [],
-
-      });
+      if (validatedRecommendations.length >= 5) break;
     }
-  }
-);
 
+    return res.json({
+      message: aiResult.message || `I found ${validatedRecommendations.length} great options for you! 🍽️`,
+      recommendations: validatedRecommendations,
+    });
+  } catch (error) {
+    console.error('AI recommendation error:', error);
+    return res.status(500).json({
+      message: error.message || 'Could not generate recommendations.',
+      recommendations: [],
+    });
+  }
+});
 
 // =============================================================
 // EXPORT
