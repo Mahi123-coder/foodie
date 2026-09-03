@@ -396,23 +396,26 @@ function GroupOrder() {
         myRecommendations = [memberRecs[0]];
       }
 
-      // 2. Combine with shared group add-ons
-      const sharedItems = planResult.sharedSuggestions || [];
-
-      const itemsToAdd = [
-        ...myRecommendations.map((m) => ({ menuItemId: m.itemId, quantity: 1 })),
-        ...sharedItems.map((s) => ({ menuItemId: s.itemId, quantity: 1 }))
-      ];
+      // IMPORTANT: sharedSuggestions are NOT added to the current member's plate.
+      // They are only recommendations for the group. Adding them here used to
+      // charge the current member for both their own item AND the shared item.
+      // Example: own Cobb Salad ₹850 + shared Cobb Salad ₹850 = incorrect ₹1700.
+      // Only the recommendation belonging to the current member is added here.
+      const itemsToAdd = myRecommendations
+        .filter((item) => item?.itemId)
+        .map((item) => ({
+          menuItemId: item.itemId,
+          quantity: 1
+        }));
 
       if (itemsToAdd.length === 0) {
-        setMessage('No recommendations found for your share.');
+        setMessage('No personal recommendation found for your share.');
         return;
       }
 
-      // 3. Post strictly 1 quantity of your item to your share
+      // Add ONLY the current member's recommended dish to their personal share.
       for (const item of itemsToAdd) {
-        if (!item.menuItemId) continue;
-        await fetch(`${API}/group-orders/${groupCode}/items`, {
+        const addRes = await fetch(`${API}/group-orders/${groupCode}/items`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -420,9 +423,14 @@ function GroupOrder() {
           },
           body: JSON.stringify(item)
         });
+
+        const addData = await addRes.json();
+        if (!addRes.ok) {
+          throw new Error(addData.message || 'Failed to add recommended item');
+        }
       }
 
-      setMessage('Your recommended items have been added to your share! 🎉');
+      setMessage('Your recommended dish has been added to your share! 🎉');
       await loadGroup(groupCode);
     } catch (error) {
       console.error('Add to group order error:', error);
@@ -841,7 +849,7 @@ function GroupOrder() {
                       onClick={approveAndAddToGroupOrder}
                       style={{ width: '100%', padding: '14px', background: '#ff5722', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '15px', boxShadow: '0 4px 12px rgba(255, 87, 34, 0.25)' }}
                     >
-                      ✨ Add My Recommended Items to My Share
+                      ✨ Add My Recommended Dish to My Share
                     </button>
                   </div>
                 ) : (
