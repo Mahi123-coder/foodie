@@ -36,6 +36,7 @@ function GroupOrder() {
   const [loading, setLoading] = useState(false);
   const [addingItem, setAddingItem] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [message, setMessage] = useState('');
 
   // AI Group Planner States
@@ -278,6 +279,32 @@ function GroupOrder() {
     }
   };
 
+  // CLEAR PLATE FUNCTIONALITY
+  const handleRemoveAllMyItems = async () => {
+    try {
+      setClearing(true);
+      setMessage('Clearing your items from MongoDB... ⏳');
+      const res = await fetch(`${API}/group-orders/${groupCode}/clear-my-items`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to clear items');
+
+      setMessage('Your plate has been cleared! 🎉');
+      await loadGroup(groupCode);
+    } catch (err) {
+      console.error('Clear items error:', err);
+      alert(err.message);
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const addMemberField = () => {
     setMemberPrefs([
       ...memberPrefs,
@@ -336,10 +363,6 @@ function GroupOrder() {
   const myShareAmount = myMemberRecord?.shareAmount || 0;
   const isMySharePaid = myMemberRecord?.paymentStatus === 'PAID';
 
-  /**
-   * FIX: Filter items so that ONLY recommendations matching the currently logged-in
-   * user's member identity are added to their cart share. Shared add-ons are posted once.
-   */
   /**
    * FIX: Populates only the logged-in user's recommended item.
    * Handles "Host" vs explicit member names ("Agrani") smoothly.
@@ -965,6 +988,27 @@ function GroupOrder() {
                     <div style={{ color: '#999', fontSize: '13px', marginTop: '6px' }}>
                       No items selected yet
                     </div>
+                  )}
+
+                  {/* CLEAR ITEMS BUTTON */}
+                  {isMe && member.items && member.items.length > 0 && (
+                    <button
+                      onClick={handleRemoveAllMyItems}
+                      disabled={clearing || isMySharePaid}
+                      style={{
+                        marginTop: '8px',
+                        padding: '4px 10px',
+                        background: '#ffebee',
+                        color: '#c62828',
+                        border: '1px solid #ef9a9a',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        cursor: clearing || isMySharePaid ? 'not-allowed' : 'pointer',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      {clearing ? 'Clearing...' : '🗑️ Clear My Items'}
+                    </button>
                   )}
                 </div>
 
