@@ -371,70 +371,53 @@ function GroupOrder() {
     if (!planResult || !groupCode) return;
 
     try {
-      setMessage('Adding your recommended items to your share... ⏳');
+      setMessage('Adding your recommended item to your share... ⏳');
 
       const myCurrentName = (myMemberRecord?.name || name || '').trim().toLowerCase();
       const memberRecs = planResult.memberRecommendations || [];
 
-      // 1. Find recommendations belonging to the current user
-      let myRecommendations = memberRecs.filter((rec) => {
-        const recName = (rec.memberName || '').trim().toLowerCase();
-        if (!recName) return false;
-        
-        // Exact name match (e.g. Agrani === Agrani)
-        if (myCurrentName && recName === myCurrentName) return true;
-        
-        // Generic alias matches
-        if (recName === 'host' || recName === 'you' || myCurrentName === 'host') return true;
-
-        return false;
-      });
-
-      // Fallback: If no exact string match was found (e.g., room member is "Host" while AI plan used "Agrani"),
-      // take the 1st recommendation in the array for the host.
-      if (myRecommendations.length === 0 && memberRecs.length > 0) {
-        myRecommendations = [memberRecs[0]];
-      }
-
-      // IMPORTANT: sharedSuggestions are NOT added to the current member's plate.
-      // They are only recommendations for the group. Adding them here used to
-      // charge the current member for both their own item AND the shared item.
-      // Example: own Cobb Salad ₹850 + shared Cobb Salad ₹850 = incorrect ₹1700.
-      // Only the recommendation belonging to the current member is added here.
-      const itemsToAdd = myRecommendations
-        .filter((item) => item?.itemId)
-        .map((item) => ({
-          menuItemId: item.itemId,
-          quantity: 1
-        }));
-
-      if (itemsToAdd.length === 0) {
-        setMessage('No personal recommendation found for your share.');
+      if (memberRecs.length === 0) {
+        setMessage('No recommendations available in plan.');
         return;
       }
 
-      // Add ONLY the current member's recommended dish to their personal share.
-      for (const item of itemsToAdd) {
-        const addRes = await fetch(`${API}/group-orders/${groupCode}/items`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify(item)
-        });
+      // 1. Match specific recommendation for logged in user name
+      let mySingleRecommendation = memberRecs.find((rec) => {
+        const recName = (rec.memberName || '').trim().toLowerCase();
+        return recName && myCurrentName && recName === myCurrentName;
+      });
 
-        const addData = await addRes.json();
-        if (!addRes.ok) {
-          throw new Error(addData.message || 'Failed to add recommended item');
-        }
+      // 2. If name is "Host" or no exact match exists, pick ONLY the very first recommendation
+      if (!mySingleRecommendation) {
+        mySingleRecommendation = memberRecs[0];
       }
+
+      if (!mySingleRecommendation?.itemId) {
+        setMessage('Could not find a valid menu item for your share.');
+        return;
+      }
+
+      // 3. Perform EXACTLY ONE request for your item (quantity: 1)
+      const res = await fetch(`${API}/group-orders/${groupCode}/items`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          menuItemId: mySingleRecommendation.itemId,
+          quantity: 1
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to add item');
 
       setMessage('Your recommended dish has been added to your share! 🎉');
       await loadGroup(groupCode);
     } catch (error) {
       console.error('Add to group order error:', error);
-      setMessage('Failed to add items to group order.');
+      setMessage('Failed to add item to group order.');
     }
   };
 
