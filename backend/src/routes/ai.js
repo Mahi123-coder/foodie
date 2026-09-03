@@ -341,7 +341,7 @@ async function toolGenerateGroupMealPlan({ totalPeople, vegCount, maxBudget, res
   };
 }
 
-// Tool definitions for Gemini Agent using standard JSON schema objects
+// Fixed lowercase schema definitions for @google/genai SDK
 const agentTools = [
   {
     functionDeclarations: [
@@ -349,12 +349,12 @@ const agentTools = [
         name: 'searchCatalog',
         description: 'Search available menu items across partner restaurants matching cuisine, spice, budget, or name.',
         parameters: {
-          type: 'OBJECT',
+          type: 'object',
           properties: {
-            query: { type: 'STRING', description: 'Search keywords like spicy, pizza, burger, biryani' },
-            maxPrice: { type: 'NUMBER', description: 'Maximum price threshold per dish in INR' },
-            isVeg: { type: 'BOOLEAN', description: 'True for purely vegetarian items' },
-            restaurantId: { type: 'STRING', description: 'Optional specific restaurant ID' }
+            query: { type: 'string', description: 'Search keywords like spicy, pizza, burger, biryani' },
+            maxPrice: { type: 'number', description: 'Maximum price threshold per dish in INR' },
+            isVeg: { type: 'boolean', description: 'True for purely vegetarian items' },
+            restaurantId: { type: 'string', description: 'Optional specific restaurant ID' }
           }
         }
       },
@@ -362,17 +362,17 @@ const agentTools = [
         name: 'inspectAndOptimizeCart',
         description: 'Analyze current cart items for bundle discounts, redundant items, and cost optimization.',
         parameters: {
-          type: 'OBJECT',
+          type: 'object',
           properties: {
             cartItems: {
-              type: 'ARRAY',
+              type: 'array',
               items: {
-                type: 'OBJECT',
+                type: 'object',
                 properties: {
-                  menuItem: { type: 'STRING' },
-                  name: { type: 'STRING' },
-                  price: { type: 'NUMBER' },
-                  quantity: { type: 'NUMBER' }
+                  menuItem: { type: 'string' },
+                  name: { type: 'string' },
+                  price: { type: 'number' },
+                  quantity: { type: 'number' }
                 }
               },
               description: 'List of items currently in cart'
@@ -385,12 +385,12 @@ const agentTools = [
         name: 'generateGroupMealPlan',
         description: 'Construct a group order combination adhering to group size, vegetarian dietary constraints, and total budget.',
         parameters: {
-          type: 'OBJECT',
+          type: 'object',
           properties: {
-            totalPeople: { type: 'NUMBER', description: 'Total number of members ordering' },
-            vegCount: { type: 'NUMBER', description: 'Number of strict vegetarians in group' },
-            maxBudget: { type: 'NUMBER', description: 'Hard total budget in INR' },
-            restaurantId: { type: 'STRING', description: 'Optional target restaurant ID' }
+            totalPeople: { type: 'number', description: 'Total number of members ordering' },
+            vegCount: { type: 'number', description: 'Number of strict vegetarians in group' },
+            maxBudget: { type: 'number', description: 'Hard total budget in INR' },
+            restaurantId: { type: 'string', description: 'Optional target restaurant ID' }
           },
           required: ['totalPeople', 'maxBudget']
         }
