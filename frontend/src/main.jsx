@@ -559,85 +559,84 @@ function Home({ add, cart }) {
 
   // Handle Commerce Agent Submissions cleanly
   // Handle Commerce Agent Submissions cleanly
-  const handleAgentSubmit = async () => {
-    const prompt = aiQuery.trim();
-    if (!prompt) return;
+  // =========================================================
+// REPLACE handleAgentSubmit IN main.jsx
+// =========================================================
+const handleAgentSubmit = async () => {
+  const prompt = aiQuery.trim();
+  if (!prompt) return;
 
-    try {
-      setAiLoading(true);
-      setAiReply('');
-      setAgentItems([]);
-      setProposedAction(null);
+  try {
+    setAiLoading(true);
+    setAiReply('');
+    setAgentItems([]);
+    setProposedAction(null);
 
-      const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token');
 
-      let response = await fetch(`${API}/ai/agent`, {
+    let response = await fetch(`${API}/ai/agent`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({
+        prompt,
+        cart: cart || [],
+        activeGroupCode: localStorage.getItem('activeGroupCode') || null
+      })
+    });
+
+    if (response.status === 404) {
+      response = await fetch(`${API}/ai/recommend`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          prompt,
-          cart: cart || [],
-          activeGroupCode: localStorage.getItem('activeGroupCode') || null
-        })
+        body: JSON.stringify({ query: prompt })
       });
-
-      if (response.status === 404) {
-        response = await fetch(`${API}/ai/recommend`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ query: prompt })
-        });
-      }
-
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.message || 'AI assistant failed to respond.');
-      }
-
-      // 1. Sanitize AI Explanation Text
-      if (result.reply || result.message) {
-        setAiReply(sanitizeText(result.reply || result.message));
-      }
-
-      // 2. Normalize and Extract Food Items into Standard Card Format
-      let rawItems = [];
-
-      if (result.proposedActions?.items && Array.isArray(result.proposedActions.items)) {
-        setProposedAction(result.proposedActions);
-        rawItems = result.proposedActions.items;
-      } else if (Array.isArray(result.recommendations) && result.recommendations.length > 0) {
-        rawItems = result.recommendations;
-      } else if (Array.isArray(result.data) && result.data.length > 0) {
-        rawItems = result.data;
-      } else if (Array.isArray(result.items) && result.items.length > 0) {
-        rawItems = result.items;
-      }
-
-      // Normalize field names across different backend endpoints
-      const normalizedItems = rawItems.map((item, index) => ({
-        itemId: item.itemId || item.menuItemId || item._id || `item-${index}`,
-        name: sanitizeText(item.name || item.menuItemName || 'Recommended Dish'),
-        price: item.price || 199,
-        isVeg: item.isVeg !== undefined ? Boolean(item.isVeg) : true,
-        description: sanitizeText(item.description || item.menuItemDescription || ''),
-        restaurantId: item.restaurantId || item.restaurant || null,
-        restaurantName: item.restaurantName || item.restaurant?.name || 'Partner Restaurant',
-        image: item.image || item.restaurantImage || DEFAULT_FOOD_IMAGE
-      }));
-
-      setAgentItems(normalizedItems);
-    } catch (error) {
-      console.error('Agent query error:', error);
-      setAiReply(`Could not complete request: ${error.message}`);
-    } finally {
-      setAiLoading(false);
     }
-  };
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || 'AI assistant failed to respond.');
+    }
+
+    // 1. Sanitize Markdown text
+    if (result.reply || result.message) {
+      setAiReply(sanitizeText(result.reply || result.message));
+    }
+
+    // 2. Extract and normalize catalog items with DB images
+    let rawItems = [];
+    if (result.proposedActions?.items && Array.isArray(result.proposedActions.items)) {
+      setProposedAction(result.proposedActions);
+      rawItems = result.proposedActions.items;
+    } else if (Array.isArray(result.data) && result.data.length > 0) {
+      rawItems = result.data;
+    } else if (Array.isArray(result.recommendations)) {
+      rawItems = result.recommendations;
+    }
+
+    const normalizedItems = rawItems.map((item, index) => ({
+      itemId: item.itemId || item.menuItemId || item._id || `item-${index}`,
+      name: sanitizeText(item.name || item.menuItemName || 'Recommended Dish'),
+      price: item.price || 199,
+      isVeg: item.isVeg !== undefined ? Boolean(item.isVeg) : true,
+      description: sanitizeText(item.description || item.menuItemDescription || ''),
+      restaurantId: item.restaurantId || item.restaurant || null,
+      restaurantName: item.restaurantName || 'Partner Restaurant',
+      image: item.image || item.restaurantImage || DEFAULT_FOOD_IMAGE
+    }));
+
+    setAgentItems(normalizedItems);
+  } catch (error) {
+    console.error('Agent query error:', error);
+    setAiReply(`Could not complete request: ${error.message}`);
+  } finally {
+    setAiLoading(false);
+  }
+};
 
   return (
     <main>
@@ -846,111 +845,110 @@ function Home({ add, cart }) {
         )}
 
         {/* Modern Recommendation Cards Grid */}
-        {agentItems.length > 0 && (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-              gap: '18px',
-              marginTop: '20px'
-            }}
-          >
-            {agentItems.map((dish, idx) => {
-              const isVeg = Boolean(dish.isVeg);
-              const fallbackImg = isVeg
-                ? 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop'
-                : 'https://images.unsplash.com/photo-1588168333986-5078d3ae3976?w=500&auto=format&fit=crop';
+       {/* =================================================
+    RECOMMENDATION CARDS GRID IN main.jsx
+================================================= */}
+{agentItems.length > 0 && (
+  <div
+    style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+      gap: '20px',
+      marginTop: '20px'
+    }}
+  >
+    {agentItems.map((dish) => {
+      const isVeg = Boolean(dish.isVeg);
+      return (
+        <div
+          key={dish.itemId}
+          style={{
+            background: '#ffffff',
+            border: '1px solid #eaeaea',
+            borderRadius: '16px',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            justify: 'space-between',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.04)'
+          }}
+        >
+          <div>
+            <div style={{ position: 'relative', width: '100%', height: '150px', backgroundColor: '#f5f5f5' }}>
+              <img
+                src={dish.image || DEFAULT_FOOD_IMAGE}
+                alt={dish.name}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                onError={(e) => { e.target.src = DEFAULT_FOOD_IMAGE; }}
+              />
+              <span
+                style={{
+                  position: 'absolute',
+                  top: '10px',
+                  left: '10px',
+                  background: 'rgba(255,255,255,0.95)',
+                  padding: '3px 8px',
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  color: isVeg ? '#2e7d32' : '#c62828'
+                }}
+              >
+                {isVeg ? '🟢 Veg' : '🔴 Non-Veg'}
+              </span>
+            </div>
 
-              return (
-                <div
-                  key={dish.itemId || idx}
-                  style={{
-                    background: '#ffffff',
-                    border: '1px solid #eaeaea',
-                    borderRadius: '16px',
-                    overflow: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justify: 'space-between',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.04)'
-                  }}
-                >
-                  <div>
-                    <div style={{ position: 'relative', width: '100%', height: '140px', backgroundColor: '#f5f5f5' }}>
-                      <img
-                        src={dish.image || fallbackImg}
-                        alt={dish.name}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        onError={(e) => { e.target.src = fallbackImg; }}
-                      />
-                      <span
-                        style={{
-                          position: 'absolute',
-                          top: '8px',
-                          left: '8px',
-                          background: 'rgba(255,255,255,0.95)',
-                          padding: '3px 8px',
-                          borderRadius: '6px',
-                          fontSize: '11px',
-                          fontWeight: 'bold',
-                          color: isVeg ? '#2e7d32' : '#c62828'
-                        }}
-                      >
-                        {isVeg ? '🟢 Veg' : '🔴 Non-Veg'}
-                      </span>
-                    </div>
-
-                    <div style={{ padding: '14px' }}>
-                      <h4 style={{ margin: '0 0 4px 0', fontSize: '16px', color: '#111', fontWeight: '700' }}>
-                        {sanitizeText(dish.name)}
-                      </h4>
-                      <div style={{ fontSize: '12px', color: '#777', marginBottom: '6px' }}>
-                        {dish.restaurantName || 'Partner Restaurant'}
-                      </div>
-                      <div style={{ color: '#ff5a1f', fontWeight: 'bold', fontSize: '16px' }}>
-                        ₹{dish.price}
-                      </div>
-                      {dish.description && (
-                        <p style={{ fontSize: '12px', color: '#666', margin: '6px 0 0 0', lineHeight: '1.3' }}>
-                          {sanitizeText(dish.description)}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div style={{ padding: '0 14px 14px 14px' }}>
-                    <button
-                      onClick={() =>
-                        add(
-                          {
-                            _id: dish.itemId || dish._id,
-                            name: dish.name,
-                            price: dish.price,
-                            image: dish.image || DEFAULT_FOOD_IMAGE
-                          },
-                          dish.restaurantId
-                        )
-                      }
-                      style={{
-                        width: '100%',
-                        padding: '10px',
-                        background: '#fff7f2',
-                        color: '#ff5a1f',
-                        border: '1.5px solid #ff5a1f',
-                        borderRadius: '8px',
-                        fontWeight: 'bold',
-                        fontSize: '13px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      + Add to Cart
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+            <div style={{ padding: '16px' }}>
+              <h4 style={{ margin: '0 0 4px 0', fontSize: '16px', color: '#111', fontWeight: '700' }}>
+                {dish.name}
+              </h4>
+              <div style={{ fontSize: '12px', color: '#888', marginBottom: '8px', fontWeight: '500' }}>
+                {dish.restaurantName}
+              </div>
+              <div style={{ color: '#ff5a1f', fontWeight: '800', fontSize: '16px', marginBottom: '8px' }}>
+                ₹{dish.price}
+              </div>
+              {dish.description && (
+                <p style={{ fontSize: '13px', color: '#666', margin: 0, lineHeight: '1.4' }}>
+                  {dish.description}
+                </p>
+              )}
+            </div>
           </div>
-        )}
+
+          <div style={{ padding: '0 16px 16px 16px' }}>
+            <button
+              onClick={() =>
+                add(
+                  {
+                    _id: dish.itemId,
+                    name: dish.name,
+                    price: dish.price,
+                    image: dish.image || DEFAULT_FOOD_IMAGE
+                  },
+                  dish.restaurantId
+                )
+              }
+              style={{
+                width: '100%',
+                padding: '10px',
+                borderRadius: '10px',
+                background: '#fff7f2',
+                color: '#ff5a1f',
+                border: '1.5px solid #ff5a1f',
+                fontWeight: 'bold',
+                fontSize: '14px',
+                cursor: 'pointer'
+              }}
+            >
+              + Add to Cart
+            </button>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+)}
       </section>
 
       {/* =================================================
