@@ -1114,5 +1114,87 @@ function GroupOrder() {
     </main>
   );
 }
+// ============================================================
+// CLEAR ALL ITEMS FOR THE CURRENT MEMBER
+// POST /api/group-orders/:groupCode/clear-my-items
+// ============================================================
+router.post('/:groupCode/clear-my-items', async (req, res) => {
+  try {
+    const { groupCode } = req.params;
+    const userId = req.user.id;
 
+    const order = await Order.findOne({
+      groupCode: groupCode.toUpperCase(),
+      isGroupOrder: true
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        message: 'Group order not found'
+      });
+    }
+
+    const member = order.groupMembers.find(
+      (member) =>
+        member.user &&
+        member.user.toString() === userId.toString()
+    );
+
+    if (!member) {
+      return res.status(403).json({
+        message: 'You are not a member of this group'
+      });
+    }
+
+    if (member.paymentStatus === 'PAID') {
+      return res.status(400).json({
+        message: 'You cannot clear items after payment'
+      });
+    }
+
+    // Remove everything from this member's plate
+    member.items = [];
+    member.shareAmount = 0;
+    member.paymentStatus = 'PENDING';
+    member.razorpayOrderId = null;
+    member.razorpayPaymentId = null;
+
+    // Recalculate complete group total
+    order.total = order.groupMembers.reduce(
+      (total, member) => {
+        return (
+          total +
+          (member.shareAmount || 0)
+        );
+      },
+      0
+    );
+
+    order.allMembersPaid = order.groupMembers.every(
+      (member) =>
+        member.paymentStatus === 'PAID' ||
+        (member.items || []).length === 0
+    );
+
+    await order.save();
+
+    return res.json({
+      message: 'Your items were cleared successfully',
+      memberShare: 0,
+      groupTotal: order.total,
+      order
+    });
+
+  } catch (error) {
+    console.error(
+      'Clear my items error:',
+      error
+    );
+
+    return res.status(500).json({
+      message: 'Failed to clear your items',
+      error: error.message
+    });
+  }
+});
 export default GroupOrder;
