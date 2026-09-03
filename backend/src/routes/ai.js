@@ -12,7 +12,7 @@ const router = Router();
 // CONFIG
 // =============================================================
 
-const GEMINI_MODEL = 'gemini-3.6-flash';
+const GEMINI_MODEL = 'gemini-2.5-flash';
 
 // =============================================================
 // GEMINI AI CLIENT
@@ -565,8 +565,6 @@ Group Room Context: ${groupOrderContext ? JSON.stringify(groupOrderContext) : 'N
 // =============================================================
 
 router.post('/recommend', async (req, res) => {
-  const requestStart = Date.now();
-
   try {
     const { query } = req.body;
 
@@ -634,7 +632,7 @@ Rules:
 2. NEVER invent a restaurant, item, ID, or price.
 3. Recommend at most 5 items.
 4. If the request says vegetarian, choose only isVeg=true.
-Return JSON only.
+Return JSON only matching the schema.
 `;
 
     const response = await ai.models.generateContent({
@@ -661,13 +659,26 @@ Return JSON only.
           },
           required: ['recommendations', 'message'],
         },
-        maxOutputTokens: 800,
+        maxOutputTokens: 2000,
+        thinkingConfig: {
+          thinkingBudget: 0,
+        },
       },
     });
 
     const responseText = response.text?.trim();
     if (!responseText) throw new Error('Gemini returned an empty response.');
-    const aiResult = JSON.parse(responseText);
+
+    let aiResult;
+    try {
+      aiResult = JSON.parse(responseText);
+    } catch (parseErr) {
+      console.error('Failed to parse Gemini JSON:', responseText);
+      return res.json({
+        message: 'Could not format recommendations properly.',
+        recommendations: [],
+      });
+    }
 
     const menuMap = new Map();
     for (const item of menuItems) menuMap.set(String(item._id), item);
