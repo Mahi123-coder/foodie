@@ -3,6 +3,16 @@ import { useNavigate } from 'react-router-dom';
 
 const API = 'https://foodie-1-3b27.onrender.com/api';
 
+// Helper function to strip raw markdown symbols (*, **, #) from AI text strings
+const cleanMarkdownText = (text) => {
+  if (!text) return '';
+  return String(text)
+    .replace(/\*\*/g, '')
+    .replace(/\*/g, '')
+    .replace(/#/g, '')
+    .trim();
+};
+
 function GroupOrder() {
   const navigate = useNavigate();
 
@@ -37,7 +47,6 @@ function GroupOrder() {
   ]);
   const [aiLoading, setAiLoading] = useState(false);
   const [planResult, setPlanResult] = useState(null);
-  const [auditTrail, setAuditTrail] = useState([]);
 
   const token = localStorage.getItem('token');
 
@@ -310,7 +319,6 @@ function GroupOrder() {
       if (!response.ok) throw new Error(data.message || 'Group planner failed');
 
       setPlanResult(data);
-      setAuditTrail(data.auditTrail || []);
     } catch (err) {
       console.error('Group Planner error:', err);
       setMessage(`Planner Error: ${err.message}`);
@@ -423,6 +431,16 @@ function GroupOrder() {
   const myShareAmount = myMemberRecord?.shareAmount || 0;
   const isMySharePaid = myMemberRecord?.paymentStatus === 'PAID';
 
+  // Helper function to resolve real menu item images or fall back to clean placeholders
+  const getItemDetails = (itemId) => {
+    const matched = menuItems.find((it) => it._id?.toString() === itemId?.toString());
+    return {
+      image: matched?.image || matched?.imageUrl || null,
+      description: matched?.description || '',
+      restaurantName: matched?.restaurant?.name || group?.restaurant?.name || 'Partner Restaurant'
+    };
+  };
+
   if (mode === 'home') {
     return (
       <main style={{ maxWidth: '900px', margin: '40px auto', padding: '0 20px', fontFamily: 'sans-serif' }}>
@@ -507,7 +525,7 @@ function GroupOrder() {
   }
 
   return (
-    <main style={{ maxWidth: '850px', margin: '30px auto', padding: '0 20px', fontFamily: 'sans-serif' }}>
+    <main style={{ maxWidth: '1100px', margin: '30px auto', padding: '0 20px', fontFamily: 'sans-serif' }}>
       <button
         onClick={() => setMode('home')}
         style={{ background: 'none', border: 'none', color: '#ff5722', cursor: 'pointer', marginBottom: '15px', fontWeight: 'bold', fontSize: '15px' }}
@@ -517,11 +535,11 @@ function GroupOrder() {
 
       <h1>Group Order Room</h1>
 
-      {/* 1. CODE SHARE CARD */}
-      <div style={{ padding: '25px', borderRadius: '16px', background: '#fff7f2', border: '1px solid #ffd8c2', textAlign: 'center', marginBottom: '25px' }}>
-        <h3 style={{ margin: '0 0 10px 0' }}>Invite Your Friends</h3>
-        <p style={{ margin: 0, color: '#666' }}>Share this code with your friends to let them join:</p>
-        <div style={{ fontSize: '36px', fontWeight: '900', letterSpacing: '8px', margin: '15px 0', color: '#d84315' }}>
+      {/* CODE SHARE CARD */}
+      <div style={{ padding: '20px 25px', borderRadius: '16px', background: '#fff7f2', border: '1px solid #ffd8c2', textAlign: 'center', marginBottom: '25px' }}>
+        <h3 style={{ margin: '0 0 6px 0' }}>Invite Your Friends</h3>
+        <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>Share this code with your friends to let them join:</p>
+        <div style={{ fontSize: '32px', fontWeight: '900', letterSpacing: '8px', margin: '10px 0', color: '#d84315' }}>
           {groupCode || 'LOADING...'}
         </div>
         <button
@@ -531,165 +549,252 @@ function GroupOrder() {
               setMessage('Group code copied to clipboard! 📋');
             }
           }}
-          style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: '#ff5722', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}
+          style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: '#ff5722', color: '#fff', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}
         >
           Copy Code 📋
         </button>
       </div>
 
-      {/* 2. PROMINENT AI GROUP ORDER PLANNER INTEGRATION */}
+      {/* PROMINENT AI GROUP ORDER PLANNER INTEGRATION (MODERN TWO-COLUMN GRID) */}
       <section
         style={{
-          background: 'linear-gradient(145deg, #ffffff 0%, #e8f5e9 100%)',
+          background: '#f4fbf7',
           border: '2px solid #2e7d32',
-          borderRadius: '16px',
+          borderRadius: '20px',
           padding: '24px',
           marginBottom: '35px',
-          boxShadow: '0 8px 24px rgba(46, 125, 50, 0.15)'
+          boxShadow: '0 8px 24px rgba(46, 125, 50, 0.12)'
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
           <div>
-            <span style={{ background: '#2e7d32', color: '#fff', padding: '4px 10px', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px' }}>
+            <span style={{ background: '#2e7d32', color: '#fff', padding: '4px 10px', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px', letterSpacing: '0.5px' }}>
               🤖 AI AGENT FEATURE
             </span>
-            <h2 style={{ margin: '8px 0 2px 0', color: '#1b5e20' }}>✨ Let AI Plan Our Group Order</h2>
+            <h2 style={{ margin: '8px 0 2px 0', color: '#1b5e20', fontSize: '22px' }}>✨ Let AI Plan Our Group Order</h2>
             <p style={{ color: '#444', margin: 0, fontSize: '14px' }}>
               Analyze member cravings & personal budgets to generate a complete meal combination using REAL menu items.
             </p>
           </div>
           <button
             onClick={() => setShowAiPlanner(!showAiPlanner)}
-            style={{ padding: '12px 20px', background: '#2e7d32', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}
+            style={{ padding: '10px 18px', background: '#2e7d32', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}
           >
             {showAiPlanner ? 'Hide AI Planner ▲' : 'Plan Our Order with AI 🤖'}
           </button>
         </div>
 
         {showAiPlanner && (
-          <div style={{ marginTop: '20px', borderTop: '1px solid #a5d6a7', paddingTop: '18px' }}>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '6px', fontSize: '14px' }}>
-                Total Group Budget (₹):
-              </label>
-              <input
-                type="number"
-                value={totalBudget}
-                onChange={(e) => setTotalBudget(e.target.value)}
-                style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #ccc', width: '220px', fontSize: '14px' }}
-              />
-            </div>
-
-            <h4 style={{ margin: '14px 0 10px 0', fontSize: '15px' }}>Member Preferences & Constraints</h4>
-            {memberPrefs.map((pref, i) => (
-              <div key={i} style={{ background: '#fff', padding: '12px', borderRadius: '10px', border: '1px solid #e0e0e0', marginBottom: '10px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px' }}>
+          <div style={{ marginTop: '20px', borderTop: '1px solid #c8e6c9', paddingTop: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', alignItems: 'start' }}>
+              
+              {/* LEFT COLUMN: INPUTS & MEMBER PREFERENCES */}
+              <div style={{ background: '#fff', padding: '20px', borderRadius: '16px', border: '1px solid #e0e0e0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+                <div style={{ marginBottom: '18px' }}>
+                  <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '6px', fontSize: '14px', color: '#222' }}>
+                    Total Group Budget (₹):
+                  </label>
                   <input
-                    placeholder="Member Name"
-                    value={pref.name}
-                    onChange={(e) => updateMemberPref(i, 'name', e.target.value)}
-                    style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '13px' }}
-                  />
-                  <select
-                    value={pref.foodPreference}
-                    onChange={(e) => updateMemberPref(i, 'foodPreference', e.target.value)}
-                    style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '13px' }}
-                  >
-                    <option value="Vegetarian">🟢 Vegetarian</option>
-                    <option value="Non-vegetarian">🔴 Non-vegetarian</option>
-                    <option value="Anything">Anything</option>
-                  </select>
-                  <select
-                    value={pref.spicePreference}
-                    onChange={(e) => updateMemberPref(i, 'spicePreference', e.target.value)}
-                    style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '13px' }}
-                  >
-                    <option value="Mild">Mild Spice</option>
-                    <option value="Medium">Medium Spice</option>
-                    <option value="Spicy">🌶️ Spicy</option>
-                  </select>
-                  <input
-                    placeholder="Cravings (e.g. Paneer, Biryani)"
-                    value={pref.cravings}
-                    onChange={(e) => updateMemberPref(i, 'cravings', e.target.value)}
-                    style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '13px' }}
+                    type="number"
+                    value={totalBudget}
+                    onChange={(e) => setTotalBudget(e.target.value)}
+                    style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid #ccc', width: '100%', boxSizing: 'border-box', fontSize: '14px', fontWeight: 'bold', color: '#2e7d32' }}
                   />
                 </div>
-              </div>
-            ))}
 
-            <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
-              <button onClick={addMemberField} style={{ padding: '8px 14px', background: '#fff', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
-                + Add Member
-              </button>
-              <button
-                onClick={runAiGroupPlanner}
-                disabled={aiLoading}
-                style={{ padding: '10px 22px', background: '#2e7d32', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}
-              >
-                {aiLoading ? 'Constructing Meal Plan... 🧠' : 'Generate Group Order Plan ✨'}
-              </button>
-            </div>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '15px', color: '#333' }}>Member Preferences & Constraints</h4>
+                {memberPrefs.map((pref, i) => (
+                  <div key={i} style={{ background: '#fafafa', padding: '14px', borderRadius: '12px', border: '1px solid #e0e0e0', marginBottom: '12px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
+                      <div>
+                        <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '3px' }}>Name</label>
+                        <input
+                          placeholder="Member Name"
+                          value={pref.name}
+                          onChange={(e) => updateMemberPref(i, 'name', e.target.value)}
+                          style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '13px', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '3px' }}>Diet</label>
+                        <select
+                          value={pref.foodPreference}
+                          onChange={(e) => updateMemberPref(i, 'foodPreference', e.target.value)}
+                          style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '13px', boxSizing: 'border-box', background: '#fff' }}
+                        >
+                          <option value="Vegetarian">🟢 Vegetarian</option>
+                          <option value="Non-vegetarian">🔴 Non-veg</option>
+                          <option value="Anything">Anything</option>
+                        </select>
+                      </div>
+                    </div>
 
-            {/* AI Group Plan Result */}
-            {planResult && (
-              <div style={{ marginTop: '20px', padding: '18px', background: '#fff', border: '2px solid #2e7d32', borderRadius: '12px' }}>
-                <h4 style={{ color: '#2e7d32', margin: '0 0 8px 0', fontSize: '16px' }}>🤖 Proposed AI Group Combination</h4>
-                <div style={{ fontSize: '14px', color: '#444', marginBottom: '12px' }}>
-                  <strong>Calculated Total:</strong> ₹{planResult.totalSpent} / ₹{planResult.totalBudget} (Budget Remaining: ₹{planResult.budgetRemaining})
-                </div>
-
-                <div style={{ fontSize: '14px', fontWeight: 'bold' }}>Individual Selections:</div>
-                <ul style={{ margin: '6px 0 12px 0', paddingLeft: '20px', fontSize: '13px' }}>
-                  {planResult.memberRecommendations?.map((rec, idx) => (
-                    <li key={idx} style={{ marginBottom: '4px' }}>
-                      👤 <strong>{rec.memberName}:</strong> {rec.isVeg ? '🟢' : '🔴'} {rec.name} — <strong>₹{rec.price}</strong> ({rec.reason})
-                    </li>
-                  ))}
-                </ul>
-
-                {planResult.sharedSuggestions?.length > 0 && (
-                  <>
-                    <div style={{ fontSize: '14px', fontWeight: 'bold' }}>Shared Add-ons:</div>
-                    <ul style={{ margin: '6px 0 12px 0', paddingLeft: '20px', fontSize: '13px' }}>
-                      {planResult.sharedSuggestions.map((item, idx) => (
-                        <li key={idx}>
-                          👥 <strong>{item.name}</strong> — ₹{item.price} ({item.reason})
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-
-                <div style={{ background: '#f5f5f5', padding: '12px', borderRadius: '6px', fontSize: '13px', margin: '12px 0', whiteSpace: 'pre-line' }}>
-                  {planResult.explanation}
-                </div>
-
-                <button
-                  onClick={approveAndAddToGroupOrder}
-                  style={{ padding: '12px 24px', background: '#2e7d32', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}
-                >
-                  ✨ Add Recommended Items to Group Order (Total: ₹{planResult.totalSpent})
-                </button>
-              </div>
-            )}
-
-            {/* Audit Trail */}
-            {auditTrail.length > 0 && (
-              <div style={{ marginTop: '16px', background: '#1e1e1e', color: '#e0e0e0', padding: '12px', borderRadius: '8px', fontFamily: 'monospace', fontSize: '11px' }}>
-                <strong>🤖 AI Agent Audit Trail:</strong>
-                {auditTrail.map((log, i) => (
-                  <div key={i} style={{ marginTop: '3px' }}>
-                    <span style={{ color: '#81c784' }}>[{log.time}]</span> <span style={{ color: '#ffb74d' }}>{log.step}:</span> {log.detail}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '3px' }}>Spice</label>
+                        <select
+                          value={pref.spicePreference}
+                          onChange={(e) => updateMemberPref(i, 'spicePreference', e.target.value)}
+                          style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '13px', boxSizing: 'border-box', background: '#fff' }}
+                        >
+                          <option value="Mild">Mild</option>
+                          <option value="Medium">Medium</option>
+                          <option value="Spicy">🌶️ Spicy</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '3px' }}>Craving</label>
+                        <input
+                          placeholder="e.g. Paneer, Biryani"
+                          value={pref.cravings}
+                          onChange={(e) => updateMemberPref(i, 'cravings', e.target.value)}
+                          style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '13px', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 ))}
+
+                <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
+                  <button onClick={addMemberField} style={{ padding: '10px 16px', background: '#fff', border: '1px solid #ccc', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
+                    + Add Member
+                  </button>
+                  <button
+                    onClick={runAiGroupPlanner}
+                    disabled={aiLoading}
+                    style={{ flex: 1, padding: '10px 20px', background: '#2e7d32', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}
+                  >
+                    {aiLoading ? 'Constructing Plan... 🧠' : 'Generate Group Plan ✨'}
+                  </button>
+                </div>
               </div>
-            )}
+
+              {/* RIGHT COLUMN: PROPOSED AI GROUP COMBINATION FOOD CARDS */}
+              <div>
+                {planResult ? (
+                  <div style={{ background: '#fff', border: '2px solid #2e7d32', borderRadius: '16px', padding: '20px', boxShadow: '0 4px 16px rgba(46, 125, 50, 0.08)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                      <h3 style={{ color: '#2e7d32', margin: 0, fontSize: '18px' }}>🤖 Proposed AI Group Combination</h3>
+                      <span style={{ background: '#e8f5e9', color: '#2e7d32', padding: '4px 12px', borderRadius: '20px', fontWeight: 'bold', fontSize: '13px' }}>
+                        Total: ₹{planResult.totalSpent} / ₹{planResult.totalBudget}
+                      </span>
+                    </div>
+
+                    <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#666' }}>
+                      Budget Remaining: <strong style={{ color: '#2e7d32' }}>₹{planResult.budgetRemaining}</strong>
+                    </p>
+
+                    {/* INDIVIDUAL FOOD CARDS GRID */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+                      {planResult.memberRecommendations?.map((rec, idx) => {
+                        const details = getItemDetails(rec.itemId);
+                        const fallbackImg = rec.isVeg
+                          ? 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop'
+                          : 'https://images.unsplash.com/photo-1588168333986-5078d3ae3976?w=500&auto=format&fit=crop';
+
+                        return (
+                          <div key={idx} style={{ border: '1px solid #e0e0e0', borderRadius: '12px', overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column', boxShadow: '0 2px 6px rgba(0,0,0,0.04)' }}>
+                            <div style={{ position: 'relative', width: '100%', height: '140px', backgroundColor: '#f0f0f0' }}>
+                              <img
+                                src={details.image || fallbackImg}
+                                alt={rec.name}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                onError={(e) => { e.target.src = fallbackImg; }}
+                              />
+                              <span style={{ position: 'absolute', top: '8px', left: '8px', background: 'rgba(255,255,255,0.95)', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                                {rec.isVeg ? '🟢 Veg' : '🔴 Non-Veg'}
+                              </span>
+                              <span style={{ position: 'absolute', bottom: '8px', right: '8px', background: 'rgba(0,0,0,0.75)', color: '#fff', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                                👤 {rec.memberName}
+                              </span>
+                            </div>
+
+                            <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
+                              <div>
+                                <div style={{ fontWeight: 'bold', fontSize: '15px', color: '#222', marginBottom: '2px' }}>{cleanMarkdownText(rec.name)}</div>
+                                <div style={{ color: '#ff5722', fontWeight: 'bold', fontSize: '14px', marginBottom: '4px' }}>₹{rec.price}</div>
+                                <div style={{ fontSize: '11px', color: '#888', marginBottom: '6px' }}>{details.restaurantName}</div>
+                                <p style={{ fontSize: '12px', color: '#555', margin: 0, lineHeight: '1.3' }}>
+                                  {cleanMarkdownText(rec.reason || details.description)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* SHARED ADD-ONS CARDS */}
+                      {planResult.sharedSuggestions?.map((item, idx) => {
+                        const details = getItemDetails(item.itemId);
+                        const fallbackImg = item.isVeg
+                          ? 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop'
+                          : 'https://images.unsplash.com/photo-1588168333986-5078d3ae3976?w=500&auto=format&fit=crop';
+
+                        return (
+                          <div key={`shared-${idx}`} style={{ border: '1px solid #a5d6a7', borderRadius: '12px', overflow: 'hidden', background: '#f1f8e9', display: 'flex', flexDirection: 'column', boxShadow: '0 2px 6px rgba(0,0,0,0.04)' }}>
+                            <div style={{ position: 'relative', width: '100%', height: '140px', backgroundColor: '#e8f5e9' }}>
+                              <img
+                                src={details.image || fallbackImg}
+                                alt={item.name}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                onError={(e) => { e.target.src = fallbackImg; }}
+                              />
+                              <span style={{ position: 'absolute', top: '8px', left: '8px', background: '#2e7d32', color: '#fff', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                                👥 Shared Add-on
+                              </span>
+                            </div>
+
+                            <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
+                              <div>
+                                <div style={{ fontWeight: 'bold', fontSize: '15px', color: '#1b5e20', marginBottom: '2px' }}>{cleanMarkdownText(item.name)}</div>
+                                <div style={{ color: '#2e7d32', fontWeight: 'bold', fontSize: '14px', marginBottom: '4px' }}>₹{item.price}</div>
+                                <p style={{ fontSize: '12px', color: '#444', margin: 0, lineHeight: '1.3' }}>
+                                  {cleanMarkdownText(item.reason || details.description)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* WHY THIS WORKS (POLISHED LIGHT GREEN CARD) */}
+                    <div style={{ background: '#e8f5e9', border: '1px solid #c8e6c9', padding: '14px 16px', borderRadius: '12px', marginBottom: '18px' }}>
+                      <div style={{ fontWeight: 'bold', color: '#1b5e20', fontSize: '14px', marginBottom: '8px' }}>
+                        Why this works
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#2e7d32', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div>✓ Satisfies dietary restrictions for all members</div>
+                        <div>✓ Uses real menu items from partner restaurants</div>
+                        <div>✓ Stays directly within your specified ₹{totalBudget} group budget</div>
+                      </div>
+                    </div>
+
+                    {/* ACTION BUTTON */}
+                    <button
+                      onClick={approveAndAddToGroupOrder}
+                      style={{ width: '100%', padding: '14px', background: '#ff5722', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '15px', boxShadow: '0 4px 12px rgba(255, 87, 34, 0.25)' }}
+                    >
+                      ✨ Add Recommended Items to Group Order (Total: ₹{planResult.totalSpent})
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ background: '#fff', border: '2px dashed #c8e6c9', borderRadius: '16px', padding: '40px 20px', textAlign: 'center', color: '#666' }}>
+                    <div style={{ fontSize: '36px', marginBottom: '10px' }}>🥗</div>
+                    <h4 style={{ margin: '0 0 6px 0', color: '#2e7d32', fontSize: '16px' }}>Ready to plan your meal?</h4>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#777' }}>
+                      Configure your total budget & member cravings on the left, then click <strong>Generate Group Plan</strong> to view AI recommendations.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+            </div>
           </div>
         )}
       </section>
 
-      {/* 3. RESTAURANT MENU ITEMS */}
+      {/* RESTAURANT MENU ITEMS */}
       <section style={{ marginTop: '35px' }}>
         <h2 style={{ marginBottom: '6px' }}>Add Items From The Menu 🍕</h2>
         <p style={{ color: '#666', fontSize: '14px', margin: '0 0 15px 0' }}>
@@ -739,7 +844,7 @@ function GroupOrder() {
         )}
       </section>
 
-      {/* 4. SPLIT BILL SELECTOR */}
+      {/* SPLIT BILL SELECTOR */}
       <section style={{ marginTop: '35px', padding: '20px', borderRadius: '14px', background: '#fff', border: '1px solid #e0e0e0', boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
         <h3 style={{ margin: '0 0 6px 0', fontSize: '18px' }}>How do you want to split the bill?</h3>
         <p style={{ color: '#666', fontSize: '13px', margin: '0 0 16px 0' }}>
@@ -779,7 +884,7 @@ function GroupOrder() {
         </div>
       </section>
 
-      {/* 5. MEMBERS, SELECTIONS, AND SPLIT BREAKDOWN */}
+      {/* MEMBERS, SELECTIONS, AND SPLIT BREAKDOWN */}
       <section style={{ marginTop: '35px' }}>
         <h2>Group Members ({group?.groupMembers?.length || 0})</h2>
         {group?.groupMembers?.length ? (
@@ -860,7 +965,7 @@ function GroupOrder() {
         )}
       </section>
 
-      {/* 6. GRAND TOTAL & PAYMENT CONTROL CARD */}
+      {/* GRAND TOTAL & PAYMENT CONTROL CARD */}
       <section style={{ marginTop: '35px', padding: '24px', background: '#fafafa', borderRadius: '14px', border: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
         <div>
           <h2 style={{ margin: 0, fontSize: '22px' }}>Total Order: ₹{group?.total || 0}</h2>
