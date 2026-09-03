@@ -59,6 +59,21 @@ const getImage = (image, fallback = DEFAULT_FOOD_IMAGE) => {
 };
 
 // =========================================================
+// TEXT SANITIZER HELPER (REMOVES RAW MARKDOWN SYMBOLS)
+// =========================================================
+
+const sanitizeText = (text) => {
+  if (!text) return '';
+  return String(text)
+    .replace(/#{1,6}\s?/g, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/`(.*?)`/g, '$1')
+    .replace(/\n+/g, ' ')
+    .trim();
+};
+
+// =========================================================
 // LEAFLET MARKER FIX
 // =========================================================
 
@@ -423,7 +438,7 @@ function RestaurantMap({ restaurants, selectedLocation, setSelectedLocation }) {
 }
 
 // =========================================================
-// HOME (WITH AGENTIC COMMERCE WORKFLOW)
+// HOME (WITH AGENTIC COMMERCE WORKFLOW & SWIGGY-STYLE CARDS)
 // =========================================================
 
 function Home({ add, cart }) {
@@ -436,8 +451,6 @@ function Home({ add, cart }) {
   const [aiReply, setAiReply] = useState('');
   const [agentItems, setAgentItems] = useState([]);
   const [proposedAction, setProposedAction] = useState(null);
-  const [auditTrail, setAuditTrail] = useState([]);
-  const [showAudit, setShowAudit] = useState(true);
 
   // Location States
   const [selectedLocation, setSelectedLocation] = useState(null);
@@ -544,7 +557,7 @@ function Home({ add, cart }) {
       return a.distance - b.distance;
     });
 
-  // Handle Commerce Agent Submissions safely
+  // Handle Commerce Agent Submissions cleanly
   const handleAgentSubmit = async () => {
     const prompt = aiQuery.trim();
     if (!prompt) return;
@@ -554,11 +567,9 @@ function Home({ add, cart }) {
       setAiReply('');
       setAgentItems([]);
       setProposedAction(null);
-      setAuditTrail([]);
 
       const token = localStorage.getItem('token');
 
-      // Primary Endpoint: AI Agentic Commerce
       let response = await fetch(`${API}/ai/agent`, {
         method: 'POST',
         headers: {
@@ -572,7 +583,6 @@ function Home({ add, cart }) {
         })
       });
 
-      // Fallback to legacy recommend if /agent route is unmounted or 404
       if (response.status === 404) {
         response = await fetch(`${API}/ai/recommend`, {
           method: 'POST',
@@ -588,13 +598,9 @@ function Home({ add, cart }) {
         throw new Error(result.message || 'AI assistant failed to respond.');
       }
 
-      // Format response according to endpoint payload schema
+      // Sanitize raw markdown text
       if (result.reply || result.message) {
-        setAiReply(result.reply || result.message);
-      }
-
-      if (result.auditTrail && Array.isArray(result.auditTrail)) {
-        setAuditTrail(result.auditTrail);
+        setAiReply(sanitizeText(result.reply || result.message));
       }
 
       if (result.proposedActions) {
@@ -605,14 +611,15 @@ function Home({ add, cart }) {
       } else if (Array.isArray(result.data)) {
         setAgentItems(result.data);
       } else if (Array.isArray(result.recommendations)) {
-        // Map legacy recommendation payload format into catalog view
         const legacyItems = result.recommendations.map((r) => ({
           itemId: r.menuItemId,
           name: r.menuItemName,
           price: r.price,
           isVeg: r.isVeg,
+          description: r.menuItemDescription || '',
           restaurantId: r.restaurantId,
-          restaurantName: r.restaurantName
+          restaurantName: r.restaurantName,
+          image: r.restaurantImage || null
         }));
         setAgentItems(legacyItems);
       }
@@ -647,7 +654,7 @@ function Home({ add, cart }) {
       </section>
 
       {/* =================================================
-          UPGRADED AI COMMERCE AGENT (RAZORPAY TRACK 01)
+          AI COMMERCE AGENT SECTION
       ================================================= */}
       <section
         className="aiBox"
@@ -686,7 +693,7 @@ function Home({ add, cart }) {
           <div style={{ fontSize: '38px' }}>⚡</div>
         </div>
 
-        {/* Natural Language Intent Input */}
+        {/* Natural Language Input */}
         <div className="aiSearch" style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
           <input
             value={aiQuery}
@@ -694,7 +701,7 @@ function Home({ add, cart }) {
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleAgentSubmit();
             }}
-            placeholder="Try: 'Spicy dinner for 4 people under ₹1500 with 1 veg' or 'Optimize cart'"
+            placeholder="Try: 'Spicy dinner for 4 people under ₹1500 with 1 veg' or 'Chicken burger'"
             style={{
               flex: 1,
               padding: '14px 18px',
@@ -716,11 +723,11 @@ function Home({ add, cart }) {
               cursor: aiLoading ? 'not-allowed' : 'pointer'
             }}
           >
-            {aiLoading ? 'Agent Reasoning... 🧠' : 'Ask Agent ✨'}
+            {aiLoading ? 'Searching... 🧠' : 'Ask Agent ✨'}
           </button>
         </div>
 
-        {/* Decision Banner */}
+        {/* Clean Explanation Banner */}
         {aiReply && (
           <div
             style={{
@@ -734,11 +741,11 @@ function Home({ add, cart }) {
             }}
           >
             <strong>Agent Explanation:</strong>
-            <p style={{ margin: '6px 0 0 0', whiteSpace: 'pre-line' }}>{aiReply}</p>
+            <p style={{ margin: '6px 0 0 0' }}>{aiReply}</p>
           </div>
         )}
 
-        {/* Bounded Action Approval Gate: Group Plan */}
+        {/* Group Plan Approval Card */}
         {proposedAction && proposedAction.type === 'POPULATE_GROUP_ORDER' && (
           <div
             style={{
@@ -758,7 +765,7 @@ function Home({ add, cart }) {
             <ul style={{ margin: '0 0 16px 0', paddingLeft: '20px', fontSize: '14px', color: '#333' }}>
               {proposedAction.items.map((it, idx) => (
                 <li key={idx}>
-                  {it.isVeg ? '🟢' : '🔴'} <strong>{it.name}</strong> — ₹{it.price} ({it.restaurantName})
+                  {it.isVeg ? '🟢' : '🔴'} <strong>{sanitizeText(it.name)}</strong> — ₹{it.price} ({it.restaurantName})
                 </li>
               ))}
             </ul>
@@ -775,7 +782,7 @@ function Home({ add, cart }) {
                     item.restaurantId
                   );
                 });
-                setAiReply('✅ Approved! All proposed items added to your cart.');
+                setAiReply('Approved! All proposed items added to your cart. ✅');
                 setProposedAction(null);
               }}
               style={{
@@ -793,7 +800,7 @@ function Home({ add, cart }) {
           </div>
         )}
 
-        {/* Bounded Action Approval Gate: Cart Optimization */}
+        {/* Cart Optimization Card */}
         {proposedAction && proposedAction.type === 'APPLY_CART_OPTIMIZATION' && (
           <div
             style={{
@@ -812,7 +819,7 @@ function Home({ add, cart }) {
             </p>
             <button
               onClick={() => {
-                setAiReply(`🎉 Applied discount! Saved ₹${proposedAction.savings} on this checkout.`);
+                setAiReply(`Applied discount! Saved ₹${proposedAction.savings} on this checkout. 🎉`);
                 setProposedAction(null);
               }}
               style={{
@@ -830,112 +837,110 @@ function Home({ add, cart }) {
           </div>
         )}
 
-        {/* Catalog Search Recommendations Grid */}
+        {/* Modern Recommendation Cards Grid */}
         {agentItems.length > 0 && (
           <div
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-              gap: '16px',
+              gap: '18px',
               marginTop: '20px'
             }}
           >
-            {agentItems.map((dish) => (
-              <div
-                key={dish.itemId}
-                style={{
-                  padding: '16px',
-                  background: '#fff',
-                  borderRadius: '14px',
-                  border: '1px solid #eee',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between'
-                }}
-              >
-                <div>
-                  <span style={{ fontSize: '12px' }}>{dish.isVeg ? '🟢 Pure Veg' : '🔴 Non-Veg'}</span>
-                  <h4 style={{ margin: '6px 0 4px 0', fontSize: '16px' }}>{dish.name}</h4>
-                  <div style={{ color: '#ff5a1f', fontWeight: 'bold', fontSize: '15px' }}>
-                    ₹{dish.price}
-                  </div>
-                  <p style={{ fontSize: '12px', color: '#777', margin: '6px 0' }}>
-                    {dish.restaurantName}
-                  </p>
-                </div>
-                <button
-                  onClick={() =>
-                    add(
-                      {
-                        _id: dish.itemId,
-                        name: dish.name,
-                        price: dish.price,
-                        image: DEFAULT_FOOD_IMAGE
-                      },
-                      dish.restaurantId
-                    )
-                  }
+            {agentItems.map((dish, idx) => {
+              const isVeg = Boolean(dish.isVeg);
+              const fallbackImg = isVeg
+                ? 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop'
+                : 'https://images.unsplash.com/photo-1588168333986-5078d3ae3976?w=500&auto=format&fit=crop';
+
+              return (
+                <div
+                  key={dish.itemId || idx}
                   style={{
-                    padding: '8px 12px',
-                    background: '#ff5a1f',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                    marginTop: '10px'
+                    background: '#ffffff',
+                    border: '1px solid #eaeaea',
+                    borderRadius: '16px',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justify: 'space-between',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.04)'
                   }}
                 >
-                  + Add to Cart
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+                  <div>
+                    <div style={{ position: 'relative', width: '100%', height: '140px', backgroundColor: '#f5f5f5' }}>
+                      <img
+                        src={dish.image || fallbackImg}
+                        alt={dish.name}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={(e) => { e.target.src = fallbackImg; }}
+                      />
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: '8px',
+                          left: '8px',
+                          background: 'rgba(255,255,255,0.95)',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: 'bold',
+                          color: isVeg ? '#2e7d32' : '#c62828'
+                        }}
+                      >
+                        {isVeg ? '🟢 Veg' : '🔴 Non-Veg'}
+                      </span>
+                    </div>
 
-        {/* Audit Trail */}
-        {auditTrail.length > 0 && (
-          <div style={{ marginTop: '25px', borderTop: '1px solid #ffd8c2', paddingTop: '16px' }}>
-            <div
-              onClick={() => setShowAudit(!showAudit)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                cursor: 'pointer',
-                userSelect: 'none'
-              }}
-            >
-              <strong style={{ fontSize: '14px', color: '#d84315' }}>
-                🤖 Agent Execution Audit Trail ({auditTrail.length} Events)
-              </strong>
-              <span style={{ fontSize: '12px', color: '#ff5a1f' }}>{showAudit ? '▲ Hide' : '▼ View Trace'}</span>
-            </div>
-
-            {showAudit && (
-              <div
-                style={{
-                  marginTop: '12px',
-                  background: '#212121',
-                  color: '#e0e0e0',
-                  borderRadius: '10px',
-                  padding: '14px 18px',
-                  fontFamily: 'monospace',
-                  fontSize: '12px',
-                  maxHeight: '220px',
-                  overflowY: 'auto'
-                }}
-              >
-                {auditTrail.map((log, i) => (
-                  <div key={i} style={{ marginBottom: '8px', borderBottom: '1px solid #333', paddingBottom: '4px' }}>
-                    <span style={{ color: '#81c784' }}>[{log.time}]</span>{' '}
-                    <span style={{ color: '#ffb74d', fontWeight: 'bold' }}>{log.step}:</span>{' '}
-                    <span style={{ color: '#e0e0e0' }}>{log.detail}</span>
+                    <div style={{ padding: '14px' }}>
+                      <h4 style={{ margin: '0 0 4px 0', fontSize: '16px', color: '#111', fontWeight: '700' }}>
+                        {sanitizeText(dish.name)}
+                      </h4>
+                      <div style={{ fontSize: '12px', color: '#777', marginBottom: '6px' }}>
+                        {dish.restaurantName || 'Partner Restaurant'}
+                      </div>
+                      <div style={{ color: '#ff5a1f', fontWeight: 'bold', fontSize: '16px' }}>
+                        ₹{dish.price}
+                      </div>
+                      {dish.description && (
+                        <p style={{ fontSize: '12px', color: '#666', margin: '6px 0 0 0', lineHeight: '1.3' }}>
+                          {sanitizeText(dish.description)}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
+
+                  <div style={{ padding: '0 14px 14px 14px' }}>
+                    <button
+                      onClick={() =>
+                        add(
+                          {
+                            _id: dish.itemId || dish._id,
+                            name: dish.name,
+                            price: dish.price,
+                            image: dish.image || DEFAULT_FOOD_IMAGE
+                          },
+                          dish.restaurantId
+                        )
+                      }
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        background: '#fff7f2',
+                        color: '#ff5a1f',
+                        border: '1.5px solid #ff5a1f',
+                        borderRadius: '8px',
+                        fontWeight: 'bold',
+                        fontSize: '13px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      + Add to Cart
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </section>
@@ -1270,7 +1275,7 @@ function Restaurant({ add }) {
 }
 
 // =========================================================
-// CART (INTEGRATED WITH RAZORPAY /create-order & /verify)
+// CART
 // =========================================================
 
 function Cart({ cart, remove, setCart }) {
@@ -1310,7 +1315,6 @@ function Cart({ cart, remove, setCart }) {
         return;
       }
 
-      // Step 1: Create MongoDB Order
       const createOrderRes = await fetch(`${API}/orders`, {
         method: 'POST',
         headers: {
@@ -1335,7 +1339,6 @@ function Cart({ cart, remove, setCart }) {
       const orderId = createdOrderData.order?._id || createdOrderData._id;
       setMsg('Opening Razorpay... 💳');
 
-      // Step 2: Create Razorpay Order
       const razorpayOrderRes = await fetch(`${API}/payments/create-order`, {
         method: 'POST',
         headers: {
@@ -1354,7 +1357,6 @@ function Cart({ cart, remove, setCart }) {
         return;
       }
 
-      // Step 3: Open Razorpay Checkout Modal
       const options = {
         key: razorpayData.key,
         amount: razorpayData.amount,
@@ -1553,7 +1555,7 @@ function Auth({ mode }) {
 }
 
 // =========================================================
-// ORDERS (SHOWS BOTH PERSONAL & GROUP ORDERS)
+// ORDERS
 // =========================================================
 
 function Orders() {
@@ -1643,7 +1645,6 @@ function Orders() {
               </div>
             </div>
 
-            {/* GROUP ORDER BREAKDOWN OR PERSONAL ORDER LIST */}
             {o.isGroupOrder ? (
               <div style={{ marginTop: '12px' }}>
                 <span
