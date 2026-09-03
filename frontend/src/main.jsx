@@ -558,6 +558,7 @@ function Home({ add, cart }) {
     });
 
   // Handle Commerce Agent Submissions cleanly
+  // Handle Commerce Agent Submissions cleanly
   const handleAgentSubmit = async () => {
     const prompt = aiQuery.trim();
     if (!prompt) return;
@@ -598,31 +599,38 @@ function Home({ add, cart }) {
         throw new Error(result.message || 'AI assistant failed to respond.');
       }
 
-      // Sanitize raw markdown text
+      // 1. Sanitize AI Explanation Text
       if (result.reply || result.message) {
         setAiReply(sanitizeText(result.reply || result.message));
       }
 
-      if (result.proposedActions) {
+      // 2. Normalize and Extract Food Items into Standard Card Format
+      let rawItems = [];
+
+      if (result.proposedActions?.items && Array.isArray(result.proposedActions.items)) {
         setProposedAction(result.proposedActions);
-        if (result.proposedActions.type === 'RECOMMENDATION_LIST') {
-          setAgentItems(result.proposedActions.items || []);
-        }
-      } else if (Array.isArray(result.data)) {
-        setAgentItems(result.data);
-      } else if (Array.isArray(result.recommendations)) {
-        const legacyItems = result.recommendations.map((r) => ({
-          itemId: r.menuItemId,
-          name: r.menuItemName,
-          price: r.price,
-          isVeg: r.isVeg,
-          description: r.menuItemDescription || '',
-          restaurantId: r.restaurantId,
-          restaurantName: r.restaurantName,
-          image: r.restaurantImage || null
-        }));
-        setAgentItems(legacyItems);
+        rawItems = result.proposedActions.items;
+      } else if (Array.isArray(result.recommendations) && result.recommendations.length > 0) {
+        rawItems = result.recommendations;
+      } else if (Array.isArray(result.data) && result.data.length > 0) {
+        rawItems = result.data;
+      } else if (Array.isArray(result.items) && result.items.length > 0) {
+        rawItems = result.items;
       }
+
+      // Normalize field names across different backend endpoints
+      const normalizedItems = rawItems.map((item, index) => ({
+        itemId: item.itemId || item.menuItemId || item._id || `item-${index}`,
+        name: sanitizeText(item.name || item.menuItemName || 'Recommended Dish'),
+        price: item.price || 199,
+        isVeg: item.isVeg !== undefined ? Boolean(item.isVeg) : true,
+        description: sanitizeText(item.description || item.menuItemDescription || ''),
+        restaurantId: item.restaurantId || item.restaurant || null,
+        restaurantName: item.restaurantName || item.restaurant?.name || 'Partner Restaurant',
+        image: item.image || item.restaurantImage || DEFAULT_FOOD_IMAGE
+      }));
+
+      setAgentItems(normalizedItems);
     } catch (error) {
       console.error('Agent query error:', error);
       setAiReply(`Could not complete request: ${error.message}`);
