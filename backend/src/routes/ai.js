@@ -89,7 +89,7 @@ router.get('/test', async (req, res) => {
 // CONFIG
 // =============================================================
 
-const GEMINI_MODEL = 'gemini-3.8-flash';
+const GEMINI_MODEL = 'gemini-3.5-flash';
 
 // =============================================================
 // GEMINI AI CLIENT
