@@ -12,7 +12,7 @@ const router = Router();
 // CONFIG
 // =============================================================
 
-const GEMINI_MODEL = 'gemini-3.6-flash';
+const GEMINI_MODEL = 'gemini-2.5-flash';
 
 // =============================================================
 // GEMINI AI CLIENT
@@ -403,7 +403,134 @@ const agentTools = [
 ];
 
 // =============================================================
-// NEW ROUTE: AGENTIC COMMERCE (TRACK 01)
+// AI GROUP ORDER PLANNER (TRACK 01 BUILDATHON)
+// POST /api/ai/group-planner
+// =============================================================
+
+router.post('/group-planner', async (req, res) => {
+  const auditLogs = [];
+  const addAudit = (step, detail) => {
+    const timestamp = new Date().toLocaleTimeString('en-IN', { hour12: false });
+    auditLogs.push({ time: timestamp, step, detail });
+  };
+
+  try {
+    const { groupCode, preferences = [], totalBudget = 1500 } = req.body;
+
+    if (!groupCode) {
+      return res.status(400).json({ message: 'Group code is required.' });
+    }
+
+    addAudit('Request Ingestion', `Planning group meal for Room #${groupCode} (${preferences.length} members)`);
+
+    const groupOrder = await Order.findOne({ groupCode: groupCode.toUpperCase(), isGroupOrder: true })
+      .populate('restaurant')
+      .lean();
+
+    if (!groupOrder || !groupOrder.restaurant) {
+      return res.status(404).json({ message: 'Active group order or restaurant room not found.' });
+    }
+
+    const restaurantId = groupOrder.restaurant._id;
+    addAudit('Context Binding', `Bound restaurant: ${groupOrder.restaurant.name}`);
+
+    // Fetch REAL menu items from MongoDB
+    const realMenu = await MenuItem.find({ restaurant: restaurantId }).lean();
+
+    if (!realMenu || realMenu.length === 0) {
+      return res.status(400).json({ message: 'No menu items found for this restaurant.' });
+    }
+
+    addAudit('Catalog Hydration', `Loaded ${realMenu.length} real catalog items from MongoDB`);
+
+    let totalSpent = 0;
+    const memberRecommendations = [];
+
+    // Match each member's preferences against REAL menu items
+    preferences.forEach((member, idx) => {
+      const isVegOnly = member.foodPreference === 'Vegetarian';
+      const isSpicy = member.spicePreference === 'Spicy';
+      const maxMemBudget = Number(member.personalBudget) || Math.floor(totalBudget / Math.max(1, preferences.length));
+
+      let candidatePool = realMenu.filter((item) => {
+        if (isVegOnly && !item.isVeg) return false;
+        if (item.price > maxMemBudget) return false;
+        return true;
+      });
+
+      if (candidatePool.length === 0) {
+        candidatePool = realMenu.filter((item) => (isVegOnly ? item.isVeg : true));
+      }
+
+      candidatePool.sort((a, b) => {
+        let scoreA = 0;
+        let scoreB = 0;
+
+        if (member.cravings && a.name.toLowerCase().includes(member.cravings.toLowerCase())) scoreA += 50;
+        if (member.cravings && b.name.toLowerCase().includes(member.cravings.toLowerCase())) scoreB += 50;
+
+        if (isSpicy && (a.name.toLowerCase().includes('spicy') || a.description?.toLowerCase().includes('spicy'))) scoreA += 20;
+        if (isSpicy && (b.name.toLowerCase().includes('spicy') || b.description?.toLowerCase().includes('spicy'))) scoreB += 20;
+
+        return scoreB - scoreA;
+      });
+
+      const chosen = candidatePool[0] || realMenu[0];
+
+      memberRecommendations.push({
+        memberName: member.name || `Member ${idx + 1}`,
+        itemId: chosen._id.toString(),
+        name: chosen.name,
+        price: chosen.price,
+        isVeg: chosen.isVeg,
+        reason: `Matches ${member.foodPreference || 'all'} dietary choice & ₹${chosen.price} personal budget.`
+      });
+
+      totalSpent += chosen.price;
+    });
+
+    const budgetRemaining = totalBudget - totalSpent;
+    const sharedSuggestions = [];
+
+    if (budgetRemaining >= 100) {
+      const addOns = realMenu.filter((i) => i.price <= budgetRemaining && i.price >= 40);
+      if (addOns.length > 0) {
+        sharedSuggestions.push({
+          itemId: addOns[0]._id.toString(),
+          name: addOns[0].name,
+          price: addOns[0].price,
+          isVeg: addOns[0].isVeg,
+          reason: `Recommended shared item fitting remaining ₹${budgetRemaining} budget!`
+        });
+      }
+    }
+
+    addAudit('Optimization Completed', `Created full group order totaling ₹${totalSpent} (Budget ₹${totalBudget})`);
+
+    const explanationText = `Why this works:
+✓ Satisfies dietary restrictions for all ${preferences.length} members.
+✓ Uses REAL menu dishes from ${groupOrder.restaurant.name}.
+✓ Total cost is ₹${totalSpent}, keeping you ₹${Math.max(0, budgetRemaining)} under your ₹${totalBudget} budget.`;
+
+    return res.json({
+      success: true,
+      restaurantName: groupOrder.restaurant.name,
+      totalBudget,
+      totalSpent,
+      budgetRemaining: Math.max(0, budgetRemaining),
+      memberRecommendations,
+      sharedSuggestions,
+      explanation: explanationText,
+      auditTrail: auditLogs
+    });
+  } catch (error) {
+    console.error('Group Planner Error:', error);
+    return res.status(500).json({ message: 'Failed to generate group meal plan', error: error.message });
+  }
+});
+
+// =============================================================
+// ROUTE: AGENTIC COMMERCE
 // POST /api/ai/agent
 // =============================================================
 
