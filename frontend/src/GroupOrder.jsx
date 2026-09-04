@@ -82,8 +82,7 @@ function GroupOrder() {
         setRestaurantsList(list);
       } catch (err) {
         console.error('Failed to load restaurants:', err);
-      } font-family: sans-serif;
-      finally {
+      } finally {
         setLoadingRestaurants(false);
       }
     };
@@ -422,7 +421,7 @@ function GroupOrder() {
   };
 
   /**
-   * Adds ALL plan recommendations (individual dishes + shared upsell add-ons) directly to group order
+   * Adds ALL plan recommendations directly to group order
    */
   const addAllPlanItemsToGroupOrder = async () => {
     if (!planResult || !groupCode) return;
@@ -455,6 +454,34 @@ function GroupOrder() {
     } catch (error) {
       console.error('Add all items error:', error);
       setMessage('Failed to add all plan items to group order.');
+    }
+  };
+
+  /**
+   * Action for claiming fractional share of a Shared Add-on
+   */
+  const handleAddSharedAddOnShare = async (item, individualShare) => {
+    if (!groupCode || !item?.itemId) return;
+
+    try {
+      setMessage(`Adding ₹${individualShare} share to your account... ⏳`);
+
+      const res = await fetch(`${API}/group-orders/${groupCode}/add-shared-share`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ menuItemId: item.itemId })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to add share');
+
+      setMessage(`Added ₹${individualShare} to your share! 🎉`);
+      await loadGroup(groupCode);
+    } catch (err) {
+      alert(err.message);
     }
   };
 
@@ -518,7 +545,8 @@ function GroupOrder() {
       rzp.open();
     } catch (err) {
       alert(err.message);
-    } finally {
+    } font-family: sans-serif;
+    finally {
       setPaying(false);
     }
   };
@@ -816,15 +844,35 @@ function GroupOrder() {
                         );
                       })}
 
-                      {/* SHARED ADD-ONS CARDS */}
+                      {/* SHARED ADD-ONS CARDS WITH FRACTIONAL SHARE ALLOCATION */}
                       {planResult.sharedSuggestions?.map((item, idx) => {
                         const details = getItemDetails(item.itemId);
                         const fallbackImg = item.isVeg
                           ? 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop'
                           : 'https://images.unsplash.com/photo-1588168333986-5078d3ae3976?w=500&auto=format&fit=crop';
 
+                        // Dynamic member count from joined room members
+                        const memberCount = group?.groupMembers?.length || memberPrefs.length || 1;
+                        const individualShare = Math.round(item.price / memberCount);
+
+                        // Check if current logged-in user already claimed their split share
+                        const isAlreadyClaimed = myMemberRecord?.items?.some(
+                          (it) => (it.itemId?.toString() === item.itemId?.toString() || it.name?.includes(item.name)) && it.isSharedAddOn
+                        );
+
                         return (
-                          <div key={`shared-${idx}`} style={{ border: '1px solid #a5d6a7', borderRadius: '12px', overflow: 'hidden', background: '#f1f8e9', display: 'flex', flexDirection: 'column', boxShadow: '0 2px 6px rgba(0,0,0,0.04)' }}>
+                          <div
+                            key={`shared-${idx}`}
+                            style={{
+                              border: '1px solid #a5d6a7',
+                              borderRadius: '12px',
+                              overflow: 'hidden',
+                              background: '#f1f8e9',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
+                            }}
+                          >
                             <div style={{ position: 'relative', width: '100%', height: '140px', backgroundColor: '#e8f5e9' }}>
                               <img
                                 src={details.image || fallbackImg}
@@ -839,12 +887,41 @@ function GroupOrder() {
 
                             <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
                               <div>
-                                <div style={{ fontWeight: 'bold', fontSize: '15px', color: '#1b5e20', marginBottom: '2px' }}>{cleanMarkdownText(item.name)}</div>
-                                <div style={{ color: '#2e7d32', fontWeight: 'bold', fontSize: '14px', marginBottom: '4px' }}>₹{item.price}</div>
-                                <p style={{ fontSize: '12px', color: '#444', margin: 0, lineHeight: '1.3' }}>
+                                <div style={{ fontWeight: 'bold', fontSize: '15px', color: '#1b5e20', marginBottom: '2px' }}>
+                                  {cleanMarkdownText(item.name)}
+                                </div>
+                                <div style={{ color: '#2e7d32', fontWeight: 'bold', fontSize: '14px', marginBottom: '4px' }}>
+                                  ₹{item.price}
+                                </div>
+                                <div style={{ fontSize: '12px', color: '#555', marginBottom: '2px' }}>
+                                  Shared among <strong>{memberCount}</strong> member{memberCount > 1 ? 's' : ''}
+                                </div>
+                                <div style={{ fontSize: '13px', color: '#1b5e20', fontWeight: 'bold', marginBottom: '8px' }}>
+                                  Your share: ₹{individualShare}
+                                </div>
+                                <p style={{ fontSize: '12px', color: '#444', margin: '0 0 10px 0', lineHeight: '1.3' }}>
                                   {cleanMarkdownText(item.reason || details.description)}
                                 </p>
                               </div>
+
+                              {/* INLINE SHARED SPLIT BUTTON */}
+                              <button
+                                onClick={() => handleAddSharedAddOnShare(item, individualShare)}
+                                disabled={isAlreadyClaimed || isMySharePaid}
+                                style={{
+                                  width: '100%',
+                                  padding: '8px 10px',
+                                  background: isAlreadyClaimed ? '#a5d6a7' : '#2e7d32',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  fontWeight: 'bold',
+                                  fontSize: '12px',
+                                  cursor: isAlreadyClaimed || isMySharePaid ? 'default' : 'pointer'
+                                }}
+                              >
+                                {isAlreadyClaimed ? `✓ Added ₹${individualShare} to My Share` : `+ Add ₹${individualShare} to My Share`}
+                              </button>
                             </div>
                           </div>
                         );

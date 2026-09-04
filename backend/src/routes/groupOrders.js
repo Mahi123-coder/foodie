@@ -226,7 +226,7 @@ router.post('/:groupCode/items', async (req, res) => {
     }
 
     const existingItem = member.items.find(
-      (item) => item.menuItem && item.menuItem.toString() === menuItemId.toString()
+      (item) => item.menuItem && item.menuItem.toString() === menuItemId.toString() && !item.isSharedAddOn
     );
 
     if (existingItem) {
@@ -278,6 +278,109 @@ router.post('/:groupCode/items', async (req, res) => {
     return res.status(500).json({
       message: 'Failed to add item'
     });
+  }
+});
+
+// =========================================================
+// ADD SHARED ADD-ON FRACTIONAL SHARE TO MEMBER AMOUNT
+// =========================================================
+router.post('/:groupCode/add-shared-share', async (req, res) => {
+  try {
+    const userId = req.user.id || req.user._id;
+    const { menuItemId } = req.body;
+
+    if (!menuItemId) {
+      return res.status(400).json({ message: 'menuItemId is required' });
+    }
+
+    const order = await Order.findOne({
+      groupCode: req.params.groupCode.toUpperCase(),
+      isGroupOrder: true
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: 'Group order not found' });
+    }
+
+    const member = order.groupMembers.find(
+      (m) => m.user && (m.user._id || m.user).toString() === userId.toString()
+    );
+
+    if (!member) {
+      return res.status(403).json({ message: 'Join the group first' });
+    }
+
+    if (member.paymentStatus === 'PAID') {
+      return res.status(400).json({ message: 'You have already paid and cannot modify your share' });
+    }
+
+    const menuItem = await MenuItem.findById(menuItemId);
+    if (!menuItem) {
+      return res.status(404).json({ message: 'Menu item not found' });
+    }
+
+    // Dynamic member count from active group room
+    const memberCount = order.groupMembers.length || 1;
+    const splitPrice = Math.round(menuItem.price / memberCount);
+
+    // Idempotency check: verify if this user already claimed this shared item
+    const alreadyClaimed = member.items.some(
+      (it) =>
+        (it.menuItem?.toString() === menuItemId.toString() || it.name?.includes(menuItem.name)) &&
+        it.isSharedAddOn === true
+    );
+
+    if (alreadyClaimed) {
+      return res.status(400).json({ message: 'You have already added your share for this shared add-on.' });
+    }
+
+    // Append fractional share item entry to member's items list
+    member.items.push({
+      menuItem: menuItem._id,
+      name: `${menuItem.name} (Shared 1/${memberCount})`,
+      price: splitPrice,
+      quantity: 1,
+      isSharedAddOn: true
+    });
+
+    // Recalculate group order total
+    order.total = order.groupMembers.reduce((sum, m) => {
+      const memberTotal = m.items.reduce(
+        (iSum, item) => iSum + Number(item.price) * Number(item.quantity),
+        0
+      );
+      return sum + memberTotal;
+    }, 0);
+
+    // Recalculate member shares based on current split mode
+    if (order.splitMode === 'EQUAL' && order.groupMembers.length > 0) {
+      const equalShare = Math.round(order.total / order.groupMembers.length);
+      order.groupMembers.forEach((m) => {
+        m.shareAmount = equalShare;
+      });
+    } else {
+      order.groupMembers.forEach((m) => {
+        m.shareAmount = m.items.reduce(
+          (iSum, item) => iSum + Number(item.price) * Number(item.quantity),
+          0
+        );
+      });
+    }
+
+    order.allMembersPaid = false;
+    order.paymentStatus = 'PENDING';
+
+    await order.save();
+
+    return res.json({
+      message: `Added ₹${splitPrice} share to your account!`,
+      memberShare: member.shareAmount,
+      groupTotal: order.total,
+      order
+    });
+  } catch (error) {
+    console.error('Add shared share error:', error);
+    return res.status(500).json({ message: error.message || 'Failed to add shared item share' });
   }
 });
 

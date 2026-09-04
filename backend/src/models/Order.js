@@ -37,6 +37,10 @@ const orderSchema = new mongoose.Schema(
         },
         quantity: {
           type: Number
+        },
+        isSharedAddOn: {
+          type: Boolean,
+          default: false
         }
       }
     ],
@@ -141,6 +145,11 @@ const orderSchema = new mongoose.Schema(
             },
             quantity: {
               type: Number
+            },
+            // Preserves idempotency and flags fractional shared items
+            isSharedAddOn: {
+              type: Boolean,
+              default: false
             }
           }
         ],
