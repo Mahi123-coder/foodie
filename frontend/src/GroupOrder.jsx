@@ -544,11 +544,10 @@ function GroupOrder() {
       const rzp = new window.Razorpay(options);
       rzp.open();
     } catch (err) {
-      alert(err.message);
-    } font-family: sans-serif;
-    finally {
-      setPaying(false);
-    }
+    alert(err.message);
+  } finally {
+    setPaying(false);
+  }
   };
 
   const getItemDetails = (itemId) => {
