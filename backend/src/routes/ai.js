@@ -79,12 +79,13 @@ function isFallbackEligibleError(error) {
 }
 
 // =============================================================
-// GEMINI GENERATION WITH AUTOMATIC MODEL FALLBACK
+// GEMINI GENERATION WITH AUTOMATIC MODEL FALLBACK & AUDIT LOGGING
 // =============================================================
 
-async function generateWithFallback(
+async function generateWithFallbackAndAudit(
   ai,
   requestConfig,
+  auditLogs = [],
   preferredModel = null
 ) {
   const errors = [];
@@ -112,11 +113,16 @@ async function generateWithFallback(
           model,
         });
 
+      const duration = Date.now() - started;
       console.log(
-        `✅ Gemini ${model} responded in ${
-          Date.now() - started
-        }ms`
+        `✅ Gemini ${model} responded in ${duration}ms`
       );
+
+      auditLogs.push({
+        time: new Date().toLocaleTimeString('en-IN', { hour12: false }),
+        step: 'Model Execution',
+        detail: `Successfully generated response using model: ${model} (${duration}ms)`
+      });
 
       return {
         response,
@@ -132,6 +138,12 @@ async function generateWithFallback(
         }ms:`,
         errorMessage
       );
+
+      auditLogs.push({
+        time: new Date().toLocaleTimeString('en-IN', { hour12: false }),
+        step: 'Model Failure & Graceful Recovery',
+        detail: `Model ${model} failed (${errorMessage.substring(0, 50)}...). Initiating automatic fallback to next model candidate...`
+      });
 
       errors.push({
         model,
@@ -157,6 +169,11 @@ async function generateWithFallback(
   finalError.modelErrors = errors;
 
   throw finalError;
+}
+
+// Backward compatible wrapper
+async function generateWithFallback(ai, requestConfig, preferredModel = null) {
+  return generateWithFallbackAndAudit(ai, requestConfig, [], preferredModel);
 }
 
 // =============================================================
@@ -1237,7 +1254,6 @@ async function toolGenerateGroupMealPlan({
     }
   }
 
-  // UPSELL ADD-ONS: Fill remaining budget with drinks, desserts, or sides
   const remainingMargin = budget - allocatedTotal;
   const sharedAddOns = [];
 
@@ -1480,7 +1496,7 @@ router.post('/group-planner', async (req, res) => {
       return res.status(400).json({ message: 'Group code is required.' });
     }
 
-    addAudit('Request Ingestion', `Planning group meal for Room #${groupCode} (${preferences.length} members)`);
+    addAudit('Request Ingestion', `Ingested room #${groupCode} request for ${preferences.length} members with ₹${totalBudget} budget constraint.`);
 
     const groupOrder = await Order.findOne({
       groupCode: groupCode.toUpperCase(),
@@ -1490,6 +1506,7 @@ router.post('/group-planner', async (req, res) => {
       .lean();
 
     if (!groupOrder || !groupOrder.restaurant) {
+      addAudit('Error Encountered', 'Group room or restaurant context resolution failed.');
       return res.status(404).json({ message: 'Active group order or restaurant room not found.' });
     }
 
@@ -1499,10 +1516,11 @@ router.post('/group-planner', async (req, res) => {
     const realMenu = await MenuItem.find({ restaurant: restaurantId }).lean();
 
     if (!realMenu || realMenu.length === 0) {
+      addAudit('Error Encountered', 'Catalog hydration returned 0 items.');
       return res.status(400).json({ message: 'No menu items found for this restaurant.' });
     }
 
-    addAudit('Catalog Hydration', `Loaded ${realMenu.length} real catalog items from MongoDB`);
+    addAudit('Catalog Hydration', `Hydrated ${realMenu.length} real catalog menu items from MongoDB.`);
 
     const ai = getGeminiAI();
 
@@ -1510,7 +1528,7 @@ router.post('/group-planner', async (req, res) => {
     if (ai) {
       try {
         const prompt = `
-You are an intelligent group dining planner AI.
+You are an intelligent group dining planner AI for Foodie.
 Analyze the provided restaurant menu items and individual group member preferences to construct a balanced group meal plan.
 
 RESTAURANT: ${groupOrder.restaurant.name}
@@ -1567,17 +1585,17 @@ Respond strictly in valid JSON matching this schema:
 }
 `;
 
-        const { response } = await generateWithFallback(ai, {
+        const { response } = await generateWithFallbackAndAudit(ai, {
           contents: prompt,
           config: {
             responseMimeType: 'application/json'
           }
-        });
+        }, auditLogs);
 
         const parsedResult = JSON.parse(response.text?.trim() || '{}');
 
         if (parsedResult.memberRecommendations?.length > 0) {
-          addAudit('AI Planning Completed', `Generated plan using Gemini AI`);
+          addAudit('Optimization Completed', `Composed complete meal combination totaling ₹${parsedResult.totalSpent} within ₹${totalBudget} budget.`);
 
           const explanationText = parsedResult.sharedSuggestions?.length > 0
             ? `Why this works:
@@ -1602,11 +1620,13 @@ Respond strictly in valid JSON matching this schema:
           });
         }
       } catch (aiErr) {
+        addAudit('AI Pipeline Fallback', `Primary LLM execution encountered an issue (${aiErr.message}). Gracefully degrading to rule engine.`);
         console.error('Gemini Group Planner logic fallback:', aiErr);
       }
     }
 
     // Fallback search logic if AI fails or key is missing
+    addAudit('Graceful Degradation', 'Executing deterministic database constraint matcher.');
     let totalSpent = 0;
     const memberRecommendations = [];
 
@@ -1677,7 +1697,7 @@ Respond strictly in valid JSON matching this schema:
       }
     }
 
-    addAudit('Optimization Completed', `Created full group order totaling ₹${totalSpent}`);
+    addAudit('Optimization Completed', `Fallback engine finalized group order totaling ₹${totalSpent}`);
 
     return res.json({
       success: true,
@@ -1692,9 +1712,11 @@ Respond strictly in valid JSON matching this schema:
     });
   } catch (error) {
     console.error('Group Planner Error:', error);
+    addAudit('System Error', error.message);
     return res.status(500).json({
       message: 'Failed to generate group meal plan',
-      error: error.message
+      error: error.message,
+      auditTrail: auditLogs
     });
   }
 });
@@ -1760,7 +1782,7 @@ router.post(
 
       if (!ai) {
         addAudit(
-          'Error',
+          'Error Encountered',
           'GEMINI_API_KEY missing on backend'
         );
 
@@ -1858,7 +1880,7 @@ ${
         response,
         model: usedModel,
       } =
-        await generateWithFallback(
+        await generateWithFallbackAndAudit(
           ai,
           {
             contents:
@@ -1870,12 +1892,13 @@ ${
               tools:
                 agentTools,
             },
-          }
+          },
+          auditLogs
         );
 
       addAudit(
-        'Gemini Model',
-        `Used ${usedModel}`
+        'Gemini Model Selected',
+        `Selected working model: ${usedModel}`
       );
 
       let finalAssistantText =
@@ -2006,7 +2029,7 @@ ${
           model:
             followUpModel,
         } =
-          await generateWithFallback(
+          await generateWithFallbackAndAudit(
             ai,
             {
               contents: [
@@ -2056,13 +2079,13 @@ ${
                   agentTools,
               },
             },
-
+            auditLogs,
             usedModel
           );
 
         addAudit(
-          'Gemini Follow-up',
-          `Used ${followUpModel}`
+          'Gemini Follow-up Complete',
+          `Follow-up generated using ${followUpModel}`
         );
 
         finalAssistantText =
@@ -2155,8 +2178,8 @@ ${
 
       else {
         addAudit(
-          'Catalog Fallback',
-          'Gemini did not call a tool, so deterministic catalog search was executed.'
+          'Catalog Fallback Engine',
+          'Gemini did not initiate function call. Executing deterministic search.'
         );
 
         toolCallResult =
@@ -2166,7 +2189,7 @@ ${
           });
 
         addAudit(
-          'Catalog Fallback',
+          'Catalog Query Completed',
           `Retrieved ${toolCallResult.length} dishes`
         );
 
@@ -2199,7 +2222,7 @@ ${
 
       addAudit(
         'Decision Completed',
-        'Awaiting human authorization for any financial operations'
+        'Execution complete. Awaiting human approval for gated operations.'
       );
 
       return res.json({

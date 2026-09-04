@@ -298,7 +298,7 @@ function GroupOrder() {
       setMessage('Your plate has been cleared! 🎉');
       await loadGroup(groupCode);
     } catch (err) {
-      console.error('Clear items error:', error);
+      console.error('Clear items error:', err);
       alert(err.message);
     } finally {
       setClearing(false);
@@ -950,6 +950,25 @@ function GroupOrder() {
                         <div>✓ Stays directly within your specified ₹{totalBudget} group budget</div>
                       </div>
                     </div>
+
+                    {/* AI AGENT AUDIT TRAIL & EXECUTION LOG PANEL */}
+                    {planResult.auditTrail && planResult.auditTrail.length > 0 && (
+                      <div style={{ marginBottom: '18px', background: '#0f172a', color: '#e2e8f0', padding: '16px', borderRadius: '12px', fontFamily: 'monospace', fontSize: '12px', border: '1px solid #334155' }}>
+                        <div style={{ fontWeight: 'bold', color: '#38bdf8', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span>🛡️ AI AGENT AUDIT TRAIL & EXECUTION LOG</span>
+                          <span style={{ background: '#166534', color: '#4ade80', padding: '2px 8px', borderRadius: '4px', fontSize: '10px' }}>
+                            ● EXPLAINED & BOUNDED
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto' }}>
+                          {planResult.auditTrail.map((log, i) => (
+                            <div key={i} style={{ borderBottom: '1px solid #1e293b', paddingBottom: '4px' }}>
+                              <span style={{ color: '#fbbf24' }}>[{log.time}]</span> <strong style={{ color: '#93c5fd' }}>{log.step}:</strong> {log.detail}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* ACTION BUTTONS */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
