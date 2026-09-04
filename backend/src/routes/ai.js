@@ -17,14 +17,14 @@ const router = Router();
 // the backend automatically tries the next model.
 const GEMINI_MODELS = [
   'gemini-3.8-flash',
-  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
   'gemini-3.6-flash',
   'gemini-3.7-flash',
+  'gemini-3.5-flash-lite',
   'gemini-3.5-flash',
-  'gemini-3.8-flash',
   'gemini-2.5-flash',
+  'gemini-1.5-flash',
   'gemini-2.5-flash-lite',
-  'gemini-3.1-flash-lite',
 ];
 
 // Primary model
@@ -89,8 +89,6 @@ async function generateWithFallback(
 ) {
   const errors = [];
 
-  // If a preferred model exists, try it first.
-  // Then try all other models.
   const orderedModels = preferredModel
     ? [
         preferredModel,
@@ -140,8 +138,6 @@ async function generateWithFallback(
         error: errorMessage,
       });
 
-      // If this is something that can reasonably be solved
-      // by another model, continue.
       if (isFallbackEligibleError(error)) {
         console.log(
           `🔄 Falling back from ${model}...`
@@ -150,8 +146,6 @@ async function generateWithFallback(
         continue;
       }
 
-      // For genuine coding/request errors, don't blindly
-      // retry every model.
       throw error;
     }
   }
@@ -1269,7 +1263,7 @@ async function toolGenerateGroupMealPlan({
         });
 
         allocatedTotal += addOn.price;
-        break; // Add top fitting upsell
+        break;
       }
     }
   }
@@ -1471,402 +1465,239 @@ const agentTools = [
 // POST /api/ai/group-planner
 // =============================================================
 
-router.post(
-  '/group-planner',
-  async (req, res) => {
-    const auditLogs = [];
+router.post('/group-planner', async (req, res) => {
+  const auditLogs = [];
 
-    const addAudit = (
-      step,
-      detail
-    ) => {
-      const timestamp =
-        new Date().toLocaleTimeString(
-          'en-IN',
-          {
-            hour12: false,
-          }
-        );
+  const addAudit = (step, detail) => {
+    const timestamp = new Date().toLocaleTimeString('en-IN', { hour12: false });
+    auditLogs.push({ time: timestamp, step, detail });
+  };
 
-      auditLogs.push({
-        time:
-          timestamp,
+  try {
+    const { groupCode, preferences = [], totalBudget = 1500 } = req.body;
 
-        step,
-
-        detail,
-      });
-    };
-
-    try {
-      const {
-        groupCode,
-        preferences = [],
-        totalBudget = 1500,
-      } = req.body;
-
-      if (!groupCode) {
-        return res.status(400).json({
-          message:
-            'Group code is required.',
-        });
-      }
-
-      addAudit(
-        'Request Ingestion',
-        `Planning group meal for Room #${groupCode} (${preferences.length} members)`
-      );
-
-      const groupOrder =
-        await Order.findOne({
-          groupCode:
-            groupCode.toUpperCase(),
-
-          isGroupOrder:
-            true,
-        })
-          .populate(
-            'restaurant'
-          )
-          .lean();
-
-      if (
-        !groupOrder ||
-        !groupOrder.restaurant
-      ) {
-        return res.status(404).json({
-          message:
-            'Active group order or restaurant room not found.',
-        });
-      }
-
-      const restaurantId =
-        groupOrder.restaurant
-          ._id;
-
-      addAudit(
-        'Context Binding',
-        `Bound restaurant: ${groupOrder.restaurant.name}`
-      );
-
-      const realMenu =
-        await MenuItem.find({
-          restaurant:
-            restaurantId,
-        }).lean();
-
-      if (
-        !realMenu ||
-        realMenu.length === 0
-      ) {
-        return res.status(400).json({
-          message:
-            'No menu items found for this restaurant.',
-        });
-      }
-
-      addAudit(
-        'Catalog Hydration',
-        `Loaded ${realMenu.length} real catalog items from MongoDB`
-      );
-
-      let totalSpent = 0;
-
-      const memberRecommendations =
-        [];
-
-      preferences.forEach(
-        (member, idx) => {
-          const isVegOnly =
-            member.foodPreference ===
-            'Vegetarian';
-
-          const isSpicy =
-            member.spicePreference ===
-            'Spicy';
-
-          const maxMemBudget =
-            Number(
-              member.personalBudget
-            ) ||
-            Math.floor(
-              totalBudget /
-                Math.max(
-                  1,
-                  preferences.length
-                )
-            );
-
-          let candidatePool =
-            realMenu.filter(
-              (item) => {
-                if (
-                  isVegOnly &&
-                  !item.isVeg
-                ) {
-                  return false;
-                }
-
-                if (
-                  item.price >
-                  maxMemBudget
-                ) {
-                  return false;
-                }
-
-                return true;
-              }
-            );
-
-          if (
-            candidatePool.length ===
-            0
-          ) {
-            candidatePool =
-              realMenu.filter(
-                (item) =>
-                  isVegOnly
-                    ? item.isVeg
-                    : true
-              );
-          }
-
-          candidatePool.sort(
-            (a, b) => {
-              let scoreA = 0;
-
-              let scoreB = 0;
-
-              if (
-                member.cravings &&
-                a.name
-                  .toLowerCase()
-                  .includes(
-                    member.cravings.toLowerCase()
-                  )
-              ) {
-                scoreA += 50;
-              }
-
-              if (
-                member.cravings &&
-                b.name
-                  .toLowerCase()
-                  .includes(
-                    member.cravings.toLowerCase()
-                  )
-              ) {
-                scoreB += 50;
-              }
-
-              if (
-                isSpicy &&
-                (
-                  a.name
-                    .toLowerCase()
-                    .includes(
-                      'spicy'
-                    ) ||
-                  a.description
-                    ?.toLowerCase()
-                    .includes(
-                      'spicy'
-                    )
-                )
-              ) {
-                scoreA += 20;
-              }
-
-              if (
-                isSpicy &&
-                (
-                  b.name
-                    .toLowerCase()
-                    .includes(
-                      'spicy'
-                    ) ||
-                  b.description
-                    ?.toLowerCase()
-                    .includes(
-                      'spicy'
-                    )
-                )
-              ) {
-                scoreB += 20;
-              }
-
-              return (
-                scoreB -
-                scoreA
-              );
-            }
-          );
-
-          const chosen =
-            candidatePool[0] ||
-            realMenu[0];
-
-          memberRecommendations.push(
-            {
-              memberName:
-                member.name ||
-                `Member ${
-                  idx + 1
-                }`,
-
-              itemId:
-                chosen._id.toString(),
-
-              name:
-                chosen.name,
-
-              price:
-                chosen.price,
-
-              isVeg:
-                chosen.isVeg,
-
-              image:
-                chosen.image ||
-                groupOrder
-                  .restaurant
-                  .image ||
-                null,
-
-              reason:
-                `Matches ${
-                  member.foodPreference ||
-                  'all'
-                } dietary choice & ₹${
-                  chosen.price
-                } personal budget.`,
-            }
-          );
-
-          totalSpent +=
-            chosen.price;
-        }
-      );
-
-      // DYNAMIC UPSELLING FOR REMAINING BUDGET
-      let budgetRemaining =
-        totalBudget -
-        totalSpent;
-
-      const sharedSuggestions =
-        [];
-
-      if (
-        budgetRemaining >=
-        40
-      ) {
-        const addOns =
-          realMenu.filter(
-            (i) =>
-              i.price <=
-                budgetRemaining &&
-              i.price >= 30 &&
-              !memberRecommendations.some((m) => m.itemId === i._id.toString())
-          ).sort((a, b) => b.price - a.price);
-
-        if (
-          addOns.length > 0
-        ) {
-          const selectedAddOn = addOns[0];
-          sharedSuggestions.push(
-            {
-              itemId:
-                selectedAddOn._id.toString(),
-
-              name:
-                selectedAddOn.name,
-
-              price:
-                selectedAddOn.price,
-
-              isVeg:
-                selectedAddOn.isVeg,
-
-              image:
-                selectedAddOn.image ||
-                groupOrder
-                  .restaurant
-                  .image ||
-                null,
-
-              reason:
-                `You have ₹${budgetRemaining} left in your ₹${totalBudget} budget! Added ${selectedAddOn.name} so your group can enjoy drinks/sides together! 🥤🍰`,
-            }
-          );
-
-          totalSpent += selectedAddOn.price;
-          budgetRemaining = totalBudget - totalSpent;
-        }
-      }
-
-      addAudit(
-        'Optimization Completed',
-        `Created full group order totaling ₹${totalSpent} (Budget ₹${totalBudget}, Remaining ₹${Math.max(0, budgetRemaining)})`
-      );
-
-      const explanationText = sharedSuggestions.length > 0
-        ? `Why this works:
-✓ Satisfies dietary choices for all ${preferences.length} members.
-✓ Uses REAL menu dishes from ${groupOrder.restaurant.name}.
-✓ You had ₹${budgetRemaining + sharedSuggestions[0].price} left in your ₹${totalBudget} budget, so we added ${sharedSuggestions[0].name} (₹${sharedSuggestions[0].price}) to maximize your group order!`
-        : `Why this works:
-✓ Satisfies dietary restrictions for all ${preferences.length} members.
-✓ Uses REAL menu dishes from ${groupOrder.restaurant.name}.
-✓ Total cost is ₹${totalSpent}, keeping you ₹${Math.max(
-          0,
-          budgetRemaining
-        )} under your ₹${totalBudget} budget.`;
-
-      return res.json({
-        success:
-          true,
-
-        restaurantName:
-          groupOrder
-            .restaurant
-            .name,
-
-        totalBudget,
-
-        totalSpent,
-
-        budgetRemaining:
-          Math.max(
-            0,
-            budgetRemaining
-          ),
-
-        memberRecommendations,
-
-        sharedSuggestions,
-
-        explanation:
-          explanationText,
-
-        auditTrail:
-          auditLogs,
-      });
-    } catch (error) {
-      console.error(
-        'Group Planner Error:',
-        error
-      );
-
-      return res.status(500).json({
-        message:
-          'Failed to generate group meal plan',
-
-        error:
-          error.message,
-      });
+    if (!groupCode) {
+      return res.status(400).json({ message: 'Group code is required.' });
     }
+
+    addAudit('Request Ingestion', `Planning group meal for Room #${groupCode} (${preferences.length} members)`);
+
+    const groupOrder = await Order.findOne({
+      groupCode: groupCode.toUpperCase(),
+      isGroupOrder: true,
+    })
+      .populate('restaurant')
+      .lean();
+
+    if (!groupOrder || !groupOrder.restaurant) {
+      return res.status(404).json({ message: 'Active group order or restaurant room not found.' });
+    }
+
+    const restaurantId = groupOrder.restaurant._id;
+    addAudit('Context Binding', `Bound restaurant: ${groupOrder.restaurant.name}`);
+
+    const realMenu = await MenuItem.find({ restaurant: restaurantId }).lean();
+
+    if (!realMenu || realMenu.length === 0) {
+      return res.status(400).json({ message: 'No menu items found for this restaurant.' });
+    }
+
+    addAudit('Catalog Hydration', `Loaded ${realMenu.length} real catalog items from MongoDB`);
+
+    const ai = getGeminiAI();
+
+    // Intelligent Gemini LLM logic for direct craving and item assignment
+    if (ai) {
+      try {
+        const prompt = `
+You are an intelligent group dining planner AI.
+Analyze the provided restaurant menu items and individual group member preferences to construct a balanced group meal plan.
+
+RESTAURANT: ${groupOrder.restaurant.name}
+CATALOG MENU ITEMS:
+${JSON.stringify(realMenu.map(m => ({
+  itemId: m._id.toString(),
+  name: m.name,
+  price: m.price,
+  isVeg: Boolean(m.isVeg),
+  description: m.description || ''
+})))}
+
+MEMBER PREFERENCES & CRAVINGS:
+${JSON.stringify(preferences)}
+
+TOTAL GROUP BUDGET: ₹${totalBudget}
+
+RULES & CONSTRAINTS:
+1. DIET RESTRICTIONS:
+   - "Vegetarian" members MUST receive an item where isVeg = true. NEVER assign non-veg to vegetarian members.
+   - "Non-vegetarian" members can eat veg or non-veg.
+
+2. DIRECT CRAVING MATCHING (HIGHEST PRIORITY):
+   - Search dish names AND descriptions for member cravings (e.g., if craving is "lamb", search for "lamb" in description; if "Rogan Josh" description contains "lamb", assign Rogan Josh to that member).
+   - Each member MUST receive exactly ONE individual main dish in "memberRecommendations" matching their craving and diet. Do NOT assign plain sides/rice when a craving dish exists.
+
+3. SHARED ADD-ONS:
+   - Any extra budget remaining after memberRecommendations can be allocated to 1 shared side/drink/dessert in "sharedSuggestions".
+   - Do NOT put main craving dishes (like Rogan Josh or Butter Chicken) into sharedSuggestions if a member requested them!
+
+Respond strictly in valid JSON matching this schema:
+{
+  "memberRecommendations": [
+    {
+      "memberName": "Member Name",
+      "itemId": "exact_menu_item_id_from_catalog",
+      "name": "Item Name",
+      "price": 0,
+      "isVeg": true/false,
+      "reason": "Directly matches [Craving] craving and dietary preferences."
+    }
+  ],
+  "sharedSuggestions": [
+    {
+      "itemId": "exact_menu_item_id_from_catalog",
+      "name": "Item Name",
+      "price": 0,
+      "isVeg": true/false,
+      "reason": "Shared side/drink to complete group order balance."
+    }
+  ],
+  "totalSpent": 0,
+  "budgetRemaining": 0
+}
+`;
+
+        const { response } = await generateWithFallback(ai, {
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json'
+          }
+        });
+
+        const parsedResult = JSON.parse(response.text?.trim() || '{}');
+
+        if (parsedResult.memberRecommendations?.length > 0) {
+          addAudit('AI Planning Completed', `Generated plan using Gemini AI`);
+
+          const explanationText = parsedResult.sharedSuggestions?.length > 0
+            ? `Why this works:
+✓ Satisfies dietary choices & cravings for all ${preferences.length} members.
+✓ Uses REAL menu dishes from ${groupOrder.restaurant.name}.
+✓ You had ₹${parsedResult.budgetRemaining + (parsedResult.sharedSuggestions[0]?.price || 0)} left in your budget, so we added ${parsedResult.sharedSuggestions[0]?.name} to complete your order!`
+            : `Why this works:
+✓ Satisfies dietary restrictions & cravings for all ${preferences.length} members.
+✓ Uses REAL menu dishes from ${groupOrder.restaurant.name}.
+✓ Total cost is ₹${parsedResult.totalSpent}, keeping you ₹${parsedResult.budgetRemaining} under your ₹${totalBudget} budget.`;
+
+          return res.json({
+            success: true,
+            restaurantName: groupOrder.restaurant.name,
+            totalBudget,
+            totalSpent: parsedResult.totalSpent,
+            budgetRemaining: parsedResult.budgetRemaining,
+            memberRecommendations: parsedResult.memberRecommendations,
+            sharedSuggestions: parsedResult.sharedSuggestions || [],
+            explanation: explanationText,
+            auditTrail: auditLogs
+          });
+        }
+      } catch (aiErr) {
+        console.error('Gemini Group Planner logic fallback:', aiErr);
+      }
+    }
+
+    // Fallback search logic if AI fails or key is missing
+    let totalSpent = 0;
+    const memberRecommendations = [];
+
+    preferences.forEach((member, idx) => {
+      const isVegOnly = member.foodPreference === 'Vegetarian';
+      const cravingText = (member.cravings || '').toLowerCase().trim();
+      const maxMemBudget = Number(member.personalBudget) || Math.floor(totalBudget / Math.max(1, preferences.length));
+
+      let candidatePool = realMenu.filter((item) => {
+        if (isVegOnly && !item.isVeg) return false;
+        if (item.price > maxMemBudget) return false;
+        return true;
+      });
+
+      if (candidatePool.length === 0) {
+        candidatePool = realMenu.filter((item) => isVegOnly ? item.isVeg : true);
+      }
+
+      candidatePool.sort((a, b) => {
+        let scoreA = 0;
+        let scoreB = 0;
+
+        const textA = `${a.name} ${a.description || ''}`.toLowerCase();
+        const textB = `${b.name} ${b.description || ''}`.toLowerCase();
+
+        if (cravingText && textA.includes(cravingText)) scoreA += 100;
+        if (cravingText && textB.includes(cravingText)) scoreB += 100;
+
+        return scoreB - scoreA;
+      });
+
+      const chosen = candidatePool[0] || realMenu[0];
+
+      memberRecommendations.push({
+        memberName: member.name || `Member ${idx + 1}`,
+        itemId: chosen._id.toString(),
+        name: chosen.name,
+        price: chosen.price,
+        isVeg: chosen.isVeg,
+        image: chosen.image || groupOrder.restaurant.image || null,
+        reason: `Matches ${member.foodPreference || 'all'} dietary choice & ₹${chosen.price} personal budget.`
+      });
+
+      totalSpent += chosen.price;
+    });
+
+    let budgetRemaining = totalBudget - totalSpent;
+    const sharedSuggestions = [];
+
+    if (budgetRemaining >= 40) {
+      const addOns = realMenu.filter(
+        (i) => i.price <= budgetRemaining && i.price >= 30 && !memberRecommendations.some((m) => m.itemId === i._id.toString())
+      ).sort((a, b) => b.price - a.price);
+
+      if (addOns.length > 0) {
+        const selectedAddOn = addOns[0];
+        sharedSuggestions.push({
+          itemId: selectedAddOn._id.toString(),
+          name: selectedAddOn.name,
+          price: selectedAddOn.price,
+          isVeg: selectedAddOn.isVeg,
+          image: selectedAddOn.image || groupOrder.restaurant.image || null,
+          reason: `You have ₹${budgetRemaining} left in your budget! Added ${selectedAddOn.name} so your group can enjoy drinks/sides together! 🥤🍰`
+        });
+
+        totalSpent += selectedAddOn.price;
+        budgetRemaining = totalBudget - totalSpent;
+      }
+    }
+
+    addAudit('Optimization Completed', `Created full group order totaling ₹${totalSpent}`);
+
+    return res.json({
+      success: true,
+      restaurantName: groupOrder.restaurant.name,
+      totalBudget,
+      totalSpent,
+      budgetRemaining: Math.max(0, budgetRemaining),
+      memberRecommendations,
+      sharedSuggestions,
+      explanation: `Constructed group order matching dietary preferences totaling ₹${totalSpent}.`,
+      auditTrail: auditLogs
+    });
+  } catch (error) {
+    console.error('Group Planner Error:', error);
+    return res.status(500).json({
+      message: 'Failed to generate group meal plan',
+      error: error.message
+    });
   }
-);
+});
 
 // =============================================================
 // AGENTIC COMMERCE
@@ -2169,9 +2000,6 @@ ${
           );
         }
 
-        // Try the SAME model first.
-        // This is important because the function call was
-        // generated by that model.
         const {
           response:
             followUp,
@@ -2194,7 +2022,6 @@ ${
                   ],
                 },
 
-                // Preserve Gemini's original model response.
                 modelContent,
 
                 {
@@ -2571,10 +2398,6 @@ Rules:
 
 Return JSON only matching the schema.
 `;
-
-      // ---------------------------------------------------------
-      // GEMINI RECOMMENDATION WITH FALLBACK
-      // ---------------------------------------------------------
 
       const {
         response,
