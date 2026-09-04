@@ -1051,24 +1051,24 @@ function Home({ add, cart }) {
                 Radius:
               </label>
               <select
-                id="radius"
-                value={radius}
-                onChange={(e) => setRadius(Number(e.target.value))}
-                style={{
-                  padding: '10px 14px',
-                  borderRadius: '10px',
-                  border: '1px solid #ddd',
-                  background: '#fff',
-                  fontSize: '15px'
-                }}
-              >
-                <option value={5}>5 km</option>
-                <option value={10}>10 km</option>
-                <option value={25}>25 km</option>
-                <option value={50}>50 km</option>
-                <option value={100}>100 km (Jaipur)</option>
-                <option value={350}>350 km (All NCR & Delhi)</option>
-              </select>
+  id="radius"
+  value={radius}
+  onChange={(e) => setRadius(Number(e.target.value))}
+  style={{
+    padding: '10px 14px',
+    borderRadius: '10px',
+    border: '1px solid #ddd',
+    background: '#fff',
+    fontSize: '15px'
+  }}
+>
+  <option value={5}>5 km</option>
+  <option value={10}>10 km</option>
+  <option value={25}>25 km</option>
+  <option value={50}>50 km</option>
+  <option value={100}>100 km (Includes Jaipur)</option>
+  <option value={350}>350 km (Includes NCR & Delhi)</option>
+</select>
             </div>
           </div>
         )}
