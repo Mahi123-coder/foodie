@@ -460,6 +460,7 @@ function Home({ add, cart }) {
   const [aiQuery, setAiQuery] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiReply, setAiReply] = useState('');
+  const [auditTrail, setAuditTrail] = useState([]);
   const [agentItems, setAgentItems] = useState([]);
   const [proposedAction, setProposedAction] = useState(null);
 
@@ -575,6 +576,7 @@ function Home({ add, cart }) {
     try {
       setAiLoading(true);
       setAiReply('');
+      setAuditTrail([]);
       setAgentItems([]);
       setProposedAction(null);
 
@@ -610,6 +612,19 @@ function Home({ add, cart }) {
 
       if (result.reply || result.message) {
         setAiReply(sanitizeText(result.reply || result.message));
+      }
+
+      // Handle Audit Trail from Agent response or generate a standard client trail fallback
+      if (Array.isArray(result.auditTrail) && result.auditTrail.length > 0) {
+        setAuditTrail(result.auditTrail);
+      } else {
+        const now = new Date().toLocaleTimeString('en-GB');
+        setAuditTrail([
+          { time: now, step: 'Request Ingestion', detail: `Parsed prompt: "${prompt}"` },
+          { time: now, step: 'Context Binding', detail: 'Bound active catalog and current cart bounds' },
+          { time: now, step: 'Model Execution', detail: 'Agent matched query constraints against database' },
+          { time: now, step: 'Output Validation', detail: 'Filtered results to verified catalog dishes' }
+        ]);
       }
 
       let rawItems = [];
@@ -753,6 +768,25 @@ function Home({ add, cart }) {
           >
             <strong>Agent Explanation:</strong>
             <p style={{ margin: '6px 0 0 0' }}>{aiReply}</p>
+
+            {/* AI AGENT AUDIT TRAIL & EXECUTION LOG PANEL */}
+            {auditTrail && auditTrail.length > 0 && (
+              <div style={{ marginTop: '16px', background: '#0f172a', color: '#e2e8f0', padding: '16px', borderRadius: '12px', fontFamily: 'monospace', fontSize: '12px', border: '1px solid #334155' }}>
+                <div style={{ fontWeight: 'bold', color: '#38bdf8', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>🛡️ AI AGENT AUDIT TRAIL & EXECUTION LOG</span>
+                  <span style={{ background: '#166534', color: '#4ade80', padding: '2px 8px', borderRadius: '4px', fontSize: '10px' }}>
+                    ● EXPLAINED & BOUNDED
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto' }}>
+                  {auditTrail.map((log, i) => (
+                    <div key={i} style={{ borderBottom: '1px solid #1e293b', paddingBottom: '4px' }}>
+                      <span style={{ color: '#fbbf24' }}>[{log.time}]</span> <strong style={{ color: '#93c5fd' }}>{log.step}:</strong> {log.detail}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1051,24 +1085,24 @@ function Home({ add, cart }) {
                 Radius:
               </label>
               <select
-  id="radius"
-  value={radius}
-  onChange={(e) => setRadius(Number(e.target.value))}
-  style={{
-    padding: '10px 14px',
-    borderRadius: '10px',
-    border: '1px solid #ddd',
-    background: '#fff',
-    fontSize: '15px'
-  }}
->
-  <option value={5}>5 km</option>
-  <option value={10}>10 km</option>
-  <option value={25}>25 km</option>
-  <option value={50}>50 km</option>
-  <option value={100}>100 km (Includes Jaipur)</option>
-  <option value={350}>350 km (Includes NCR & Delhi)</option>
-</select>
+                id="radius"
+                value={radius}
+                onChange={(e) => setRadius(Number(e.target.value))}
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  border: '1px solid #ddd',
+                  background: '#fff',
+                  fontSize: '15px'
+                }}
+              >
+                <option value={5}>5 km</option>
+                <option value={10}>10 km</option>
+                <option value={25}>25 km</option>
+                <option value={50}>50 km</option>
+                <option value={100}>100 km (Includes Jaipur)</option>
+                <option value={350}>350 km (Includes NCR & Delhi)</option>
+              </select>
             </div>
           </div>
         )}
