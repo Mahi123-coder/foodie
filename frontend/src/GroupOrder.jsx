@@ -82,7 +82,7 @@ function GroupOrder() {
         setRestaurantsList(list);
       } catch (err) {
         console.error('Failed to load restaurants:', err);
-      } finally {
+      } fontFinally: {
         setLoadingRestaurants(false);
       }
     };
@@ -862,11 +862,9 @@ function GroupOrder() {
                           ? 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop'
                           : 'https://images.unsplash.com/photo-1588168333986-5078d3ae3976?w=500&auto=format&fit=crop';
 
-                        // Dynamic member count from joined room members or input form
                         const memberCount = group?.groupMembers?.length || memberPrefs.length || 1;
                         const individualShare = Math.round(item.price / memberCount);
 
-                        // Check if current logged-in user already claimed their split share
                         const isAlreadyClaimed = myMemberRecord?.items?.some(
                           (it) => ((it.menuItem?._id || it.menuItem)?.toString() === item.itemId?.toString() || it.name?.includes(item.name)) && it.isSharedAddOn
                         );
@@ -915,7 +913,6 @@ function GroupOrder() {
                                 </p>
                               </div>
 
-                              {/* INLINE SHARED SPLIT BUTTON */}
                               <button
                                 onClick={() => handleAddSharedAddOnShare(item, individualShare)}
                                 disabled={isAlreadyClaimed || isMySharePaid}
