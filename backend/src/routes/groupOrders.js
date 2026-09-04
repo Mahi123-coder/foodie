@@ -171,7 +171,7 @@ router.post('/:groupCode/join', async (req, res) => {
 });
 
 // =========================================================
-// ADD ITEM TO GROUP ORDER
+// ADD ITEM TO GROUP ORDER (Individual Choice)
 // =========================================================
 router.post('/:groupCode/items', async (req, res) => {
   try {
@@ -225,6 +225,7 @@ router.post('/:groupCode/items', async (req, res) => {
       });
     }
 
+    // Match only standard non-shared items to increment quantity
     const existingItem = member.items.find(
       (item) => item.menuItem && item.menuItem.toString() === menuItemId.toString() && !item.isSharedAddOn
     );
@@ -236,10 +237,12 @@ router.post('/:groupCode/items', async (req, res) => {
         menuItem: menuItem._id,
         name: menuItem.name,
         price: menuItem.price,
-        quantity: numericQuantity
+        quantity: numericQuantity,
+        isSharedAddOn: false
       });
     }
 
+    // Recalculate group order total from member items
     order.total = order.groupMembers.reduce((sum, m) => {
       const memberTotal = m.items.reduce(
         (iSum, item) => iSum + Number(item.price) * Number(item.quantity),
@@ -248,6 +251,7 @@ router.post('/:groupCode/items', async (req, res) => {
       return sum + memberTotal;
     }, 0);
 
+    // Recalculate member share amounts based on split mode
     if (order.splitMode === 'EQUAL' && order.groupMembers.length > 0) {
       const equalShare = Math.round(order.total / order.groupMembers.length);
       order.groupMembers.forEach((m) => {
@@ -319,7 +323,7 @@ router.post('/:groupCode/add-shared-share', async (req, res) => {
       return res.status(404).json({ message: 'Menu item not found' });
     }
 
-    // Dynamic member count from active group room
+    // Dynamic member count calculated strictly from active joined room members
     const memberCount = order.groupMembers.length || 1;
     const splitPrice = Math.round(menuItem.price / memberCount);
 
@@ -343,7 +347,7 @@ router.post('/:groupCode/add-shared-share', async (req, res) => {
       isSharedAddOn: true
     });
 
-    // Recalculate group order total
+    // Recalculate group order total from member items
     order.total = order.groupMembers.reduce((sum, m) => {
       const memberTotal = m.items.reduce(
         (iSum, item) => iSum + Number(item.price) * Number(item.quantity),

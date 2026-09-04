@@ -41,9 +41,9 @@ function GroupOrder() {
 
   // AI Group Planner States
   const [showAiPlanner, setShowAiPlanner] = useState(true);
-  const [totalBudget, setTotalBudget] = useState(1500);
+  const [totalBudget, setTotalBudget] = useState(3000);
   const [memberPrefs, setMemberPrefs] = useState([
-    { name: 'Agrani', foodPreference: 'Vegetarian', spicePreference: 'Spicy', cravings: 'Paneer', personalBudget: 400 },
+    { name: 'Agrani', foodPreference: 'Vegetarian', spicePreference: 'Spicy', cravings: 'Paneer', personalBudget: 650 },
     { name: 'Aarav', foodPreference: 'Non-vegetarian', spicePreference: 'Medium', cravings: 'Biryani', personalBudget: 500 }
   ]);
   const [aiLoading, setAiLoading] = useState(false);
@@ -298,7 +298,7 @@ function GroupOrder() {
       setMessage('Your plate has been cleared! 🎉');
       await loadGroup(groupCode);
     } catch (err) {
-      console.error('Clear items error:', err);
+      console.error('Clear items error:', error);
       alert(err.message);
     } finally {
       setClearing(false);
@@ -308,7 +308,7 @@ function GroupOrder() {
   const addMemberField = () => {
     setMemberPrefs([
       ...memberPrefs,
-      { name: `Member ${memberPrefs.length + 1}`, foodPreference: 'Anything', spicePreference: 'Medium', cravings: '', personalBudget: 300 }
+      { name: `Member ${memberPrefs.length + 1}`, foodPreference: 'Anything', spicePreference: 'Medium', cravings: '', personalBudget: 500 }
     ]);
   };
 
@@ -386,7 +386,7 @@ function GroupOrder() {
         return recName && myCurrentName && recName === myCurrentName;
       });
 
-      // 2. If name is "Host" or no exact match exists, pick ONLY the very first recommendation
+      // 2. If no exact name match exists, pick the first recommendation
       if (!mySingleRecommendation) {
         mySingleRecommendation = memberRecs[0];
       }
@@ -396,7 +396,7 @@ function GroupOrder() {
         return;
       }
 
-      // 3. Perform EXACTLY ONE request for your item (quantity: 1)
+      // 3. Perform request for your single recommended item
       const res = await fetch(`${API}/group-orders/${groupCode}/items`, {
         method: 'POST',
         headers: {
@@ -421,13 +421,13 @@ function GroupOrder() {
   };
 
   /**
-   * Adds ALL plan recommendations directly to group order
+   * Adds ALL plan recommendations directly to group order without duplicating
    */
   const addAllPlanItemsToGroupOrder = async () => {
     if (!planResult || !groupCode) return;
 
     try {
-      setMessage('Adding all plan items and upsell add-ons to the room... ⏳');
+      setMessage('Adding all plan items and shared add-ons to the room... ⏳');
 
       const allItems = [
         ...(planResult.memberRecommendations || []),
@@ -436,17 +436,29 @@ function GroupOrder() {
 
       for (const item of allItems) {
         if (!item.itemId) continue;
-        await fetch(`${API}/group-orders/${groupCode}/items`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            menuItemId: item.itemId,
-            quantity: 1
-          })
-        });
+
+        if (item.isSharedAddOn || item.shared) {
+          await fetch(`${API}/group-orders/${groupCode}/add-shared-share`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({ menuItemId: item.itemId })
+          });
+        } else {
+          await fetch(`${API}/group-orders/${groupCode}/items`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              menuItemId: item.itemId,
+              quantity: 1
+            })
+          });
+        }
       }
 
       setMessage('Full meal combination added to group room! 🎉');
@@ -544,10 +556,10 @@ function GroupOrder() {
       const rzp = new window.Razorpay(options);
       rzp.open();
     } catch (err) {
-    alert(err.message);
-  } finally {
-    setPaying(false);
-  }
+      alert(err.message);
+    } finally {
+      setPaying(false);
+    }
   };
 
   const getItemDetails = (itemId) => {
@@ -850,13 +862,13 @@ function GroupOrder() {
                           ? 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop'
                           : 'https://images.unsplash.com/photo-1588168333986-5078d3ae3976?w=500&auto=format&fit=crop';
 
-                        // Dynamic member count from joined room members
+                        // Dynamic member count from joined room members or input form
                         const memberCount = group?.groupMembers?.length || memberPrefs.length || 1;
                         const individualShare = Math.round(item.price / memberCount);
 
                         // Check if current logged-in user already claimed their split share
                         const isAlreadyClaimed = myMemberRecord?.items?.some(
-                          (it) => (it.itemId?.toString() === item.itemId?.toString() || it.name?.includes(item.name)) && it.isSharedAddOn
+                          (it) => ((it.menuItem?._id || it.menuItem)?.toString() === item.itemId?.toString() || it.name?.includes(item.name)) && it.isSharedAddOn
                         );
 
                         return (
