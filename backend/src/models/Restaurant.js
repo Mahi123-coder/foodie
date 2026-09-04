@@ -1,5 +1,8 @@
 import mongoose from 'mongoose';
 
+
+
+
 const restaurantSchema = new mongoose.Schema(
   {
     name: { 
@@ -28,11 +31,13 @@ const restaurantSchema = new mongoose.Schema(
 
     // Map coordinates
     latitude: {
-      type: Number
+      type: Number,
+      required: true
     },
 
     longitude: {
-      type: Number
+      type: Number,
+      required: true
     },
 
     priceForTwo: Number,

@@ -6,6 +6,45 @@ import MenuItem from './models/MenuItem.js';
 
 const restaurants = [
   {
+    name: 'Cafe 1947',
+    cuisine: ['Indian', 'Chinese'],
+    rating: 4.5,
+    deliveryTime: 20,
+    image:
+      'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80',
+    location: 'Jaipur',
+    latitude: 26.8530,
+    longitude: 75.8046,
+    priceForTwo: 800,
+    isVeg: false
+  },
+  {
+    name: 'Bellagio',
+    cuisine: ['European'],
+    rating: 5.0,
+    deliveryTime: 25,
+    image:
+      'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80',
+    location: 'Gurugram',
+    latitude: 28.4595,
+    longitude: 77.0266,
+    priceForTwo: 1650,
+    isVeg: false
+  },
+  {
+    name: 'Greenr Cafe',
+    cuisine: ['American', 'European'],
+    rating: 4.9,
+    deliveryTime: 25,
+    image:
+      'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=800&q=80',
+    location: 'Delhi',
+    latitude: 28.5246,
+    longitude: 77.2066,
+    priceForTwo: 2500,
+    isVeg: true
+  },
+  {
     name: 'Spice Route',
     cuisine: ['Indian', 'North Indian'],
     rating: 4.5,
@@ -18,7 +57,6 @@ const restaurants = [
     priceForTwo: 500,
     isVeg: true
   },
-
   {
     name: 'Pizza Paradise',
     cuisine: ['Italian', 'Pizza'],
@@ -30,48 +68,6 @@ const restaurants = [
     latitude: 12.9352,
     longitude: 77.6245,
     priceForTwo: 600,
-    isVeg: false
-  },
-
-  {
-    name: 'Burger House',
-    cuisine: ['Burgers', 'Fast Food'],
-    rating: 4.4,
-    deliveryTime: 20,
-    image:
-      'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=800&q=80',
-    location: 'Bangalore',
-    latitude: 12.9784,
-    longitude: 77.6408,
-    priceForTwo: 400,
-    isVeg: false
-  },
-
-  {
-    name: 'Dosa Corner',
-    cuisine: ['South Indian', 'Breakfast'],
-    rating: 4.6,
-    deliveryTime: 20,
-    image:
-      'https://images.unsplash.com/photo-1668236543090-82eba5ee5976?auto=format&fit=crop&w=800&q=80',
-    location: 'Bangalore',
-    latitude: 12.9981,
-    longitude: 77.5923,
-    priceForTwo: 300,
-    isVeg: true
-  },
-
-  {
-    name: 'Wok Express',
-    cuisine: ['Chinese', 'Asian'],
-    rating: 4.2,
-    deliveryTime: 35,
-    image:
-      'https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=800&q=80',
-    location: 'Bangalore',
-    latitude: 12.985,
-    longitude: 77.7281,
-    priceForTwo: 550,
     isVeg: false
   }
 ];
@@ -86,7 +82,6 @@ const menuData = [
       'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=800&q=80',
     isVeg: true
   },
-
   {
     name: 'Butter Naan',
     description: 'Soft naan brushed with butter',
@@ -96,7 +91,6 @@ const menuData = [
       'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=800&q=80',
     isVeg: true
   },
-
   {
     name: 'Margherita Pizza',
     description: 'Classic pizza with tomato, mozzarella and basil',
@@ -105,36 +99,6 @@ const menuData = [
     image:
       'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=800&q=80',
     isVeg: true
-  },
-
-  {
-    name: 'Chicken Burger',
-    description: 'Crispy chicken patty with fresh vegetables',
-    price: 249,
-    category: 'Burgers',
-    image:
-      'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=800&q=80',
-    isVeg: false
-  },
-
-  {
-    name: 'Masala Dosa',
-    description: 'Crispy dosa served with potato masala',
-    price: 120,
-    category: 'South Indian',
-    image:
-      'https://images.unsplash.com/photo-1668236543090-82eba5ee5976?auto=format&fit=crop&w=800&q=80',
-    isVeg: true
-  },
-
-  {
-    name: 'Veg Hakka Noodles',
-    description: 'Stir-fried noodles with fresh vegetables',
-    price: 180,
-    category: 'Chinese',
-    image:
-      'https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=800&q=80',
-    isVeg: true
   }
 ];
 
@@ -142,56 +106,23 @@ async function seed() {
   try {
     console.log('🌱 Starting database seed...');
 
-    // Use your existing database connection helper
     await connectDB();
-
     console.log('✅ MongoDB connected');
 
-    // Clear existing data
     await Restaurant.deleteMany({});
     await MenuItem.deleteMany({});
-
     console.log('🗑️ Old restaurants and menu items removed');
 
-    // Create restaurants
     const createdRestaurants = await Restaurant.insertMany(restaurants);
-
     console.log(`🍴 ${createdRestaurants.length} restaurants created`);
 
-    // Connect menu items to restaurants
     const menuItems = [
-      {
-        ...menuData[0],
-        restaurant: createdRestaurants[0]._id
-      },
-      {
-        ...menuData[1],
-        restaurant: createdRestaurants[0]._id
-      },
-
-      {
-        ...menuData[2],
-        restaurant: createdRestaurants[1]._id
-      },
-
-      {
-        ...menuData[3],
-        restaurant: createdRestaurants[2]._id
-      },
-
-      {
-        ...menuData[4],
-        restaurant: createdRestaurants[3]._id
-      },
-
-      {
-        ...menuData[5],
-        restaurant: createdRestaurants[4]._id
-      }
+      { ...menuData[0], restaurant: createdRestaurants[0]._id },
+      { ...menuData[1], restaurant: createdRestaurants[0]._id },
+      { ...menuData[2], restaurant: createdRestaurants[1]._id }
     ];
 
     await MenuItem.insertMany(menuItems);
-
     console.log(`🍽️ ${menuItems.length} menu items created`);
 
     console.log('🗺️ Restaurant coordinates added successfully!');
