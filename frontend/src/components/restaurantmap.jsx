@@ -1,193 +1,175 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import React from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
+import { Link } from 'react-router-dom';
 
-/* =========================================================
-   LOCATE ME BUTTON
-========================================================= */
+// Haversine distance calculator in kilometers
+function getHaversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth's radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
 
-function LocateMe() {
+// Map Click Listener to update user's selected location
+function MapLocationPicker({ setSelectedLocation }) {
+  useMapEvents({
+    click(e) {
+      setSelectedLocation({
+        lat: e.latlng.lat,
+        lng: e.latlng.lng,
+      });
+    },
+  });
+  return null;
+}
+
+// Locate Me Button
+function LocateMeControl({ setSelectedLocation }) {
   const map = useMap();
 
-  const [location, setLocation] = useState(null);
-  const [locating, setLocating] = useState(false);
-  const [error, setError] = useState("");
-
-  const locateUser = () => {
-    if (!navigator.geolocation) {
-      setError("Location is not supported by your browser.");
-      return;
-    }
-
-    setLocating(true);
-    setError("");
+  const handleLocate = () => {
+    if (!navigator.geolocation) return;
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
+        const { latitude, longitude } = position.coords;
+        const newLoc = { lat: latitude, lng: longitude };
 
-        setLocation([lat, lng]);
-
-        map.flyTo([lat, lng], 12, {
-          duration: 1.5,
-        });
-
-        setLocating(false);
+        setSelectedLocation(newLoc);
+        map.flyTo([latitude, longitude], 12, { duration: 1.5 });
       },
-
       (error) => {
-        setLocating(false);
-
-        if (error.code === 1) {
-          setError(
-            "Location permission was denied. Please allow location access."
-          );
-        } else if (error.code === 2) {
-          setError("Your location could not be determined.");
-        } else {
-          setError("Unable to get your location. Please try again.");
-        }
+        console.error("Error retrieving location:", error);
       },
-
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-      }
+      { enableHighAccuracy: true, timeout: 10000 }
     );
   };
 
   return (
-    <>
-      {/* LOCATE ME BUTTON */}
-      <div className="locateMeControl">
-        <button
-          type="button"
-          onClick={locateUser}
-          disabled={locating}
-          title="Find my current location"
-        >
-          {locating ? "⏳ Locating..." : "📍 Locate Me"}
-        </button>
-
-        {error && <div className="locationError">{error}</div>}
-      </div>
-
-      {/* USER LOCATION MARKER */}
-      {location && (
-        <Marker position={location}>
-          <Popup>
-            <div className="userLocationPopup">
-              <strong>📍 You are here</strong>
-              <p>This is your current location.</p>
-            </div>
-          </Popup>
-        </Marker>
-      )}
-    </>
+    <div className="locateMeControl">
+      <button type="button" onClick={handleLocate} title="Find my current location">
+        📍 Locate Me
+      </button>
+    </div>
   );
 }
 
-/* =========================================================
-   RESTAURANT MAP
-========================================================= */
-
-export default function RestaurantMap({ restaurants = [] }) {
-  // Validate coordinates and support both naming patterns (latitude vs lat)
+export default function RestaurantMap({
+  restaurants = [],
+  selectedLocation,
+  setSelectedLocation,
+}) {
+  // FIX 3: Robust Coordinate Validation
   const validRestaurants = restaurants.filter((restaurant) => {
-    const lat = Number(restaurant.latitude ?? restaurant.lat);
-    const lng = Number(restaurant.longitude ?? restaurant.lng);
+    const lat = Number(restaurant.latitude);
+    const lng = Number(restaurant.longitude);
 
-    return Number.isFinite(lat) && Number.isFinite(lng);
+    return (
+      Number.isFinite(lat) &&
+      Number.isFinite(lng) &&
+      lat >= -90 &&
+      lat <= 90 &&
+      lng >= -180 &&
+      lng <= 180
+    );
   });
 
-  // Calculate dynamic default center: fallback to Jaipur/Tonk area [26.8530, 75.8046]
-  const defaultCenter =
-    validRestaurants.length > 0
-      ? [
-          Number(validRestaurants[0].latitude ?? validRestaurants[0].lat),
-          Number(validRestaurants[0].longitude ?? validRestaurants[0].lng),
-        ]
-      : [26.8530, 75.8046];
+  // FIX 2: Map Center Logic (Selected Location > Fallback to Tonk, Rajasthan)
+  const mapCenter = selectedLocation
+    ? [selectedLocation.lat, selectedLocation.lng]
+    : [26.17, 75.79];
 
   return (
     <section className="mapSection">
-      {/* MAP HEADER */}
       <div className="mapHeader">
         <div>
           <p className="eyebrow">FIND YOUR FOOD</p>
           <h2>Restaurants near you 📍</h2>
-          <p>
-            Explore restaurants on the map and choose where you want to order from.
-          </p>
+          <p>Explore restaurants on the map and choose where you want to order from.</p>
         </div>
-
-        <div className="mapBadge">
-          📍 {validRestaurants.length} locations
-        </div>
+        <div className="mapBadge">📍 {validRestaurants.length} locations</div>
       </div>
 
-      {/* MAP / EMPTY STATE */}
-      {validRestaurants.length === 0 ? (
-        <div className="emptyState">
-          <div style={{ fontSize: "2rem" }}>📍</div>
-          <h3>No restaurants found nearby</h3>
-          <p>
-            There are no restaurants within your selected radius. Try selecting{" "}
-            <strong>"Show All"</strong> or expanding your search radius to view options across the region.
-          </p>
-        </div>
-      ) : (
-        <div className="mapWrapper">
-          <MapContainer
-            center={defaultCenter}
-            zoom={7}
-            scrollWheelZoom={true}
-            className="restaurantMap"
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
+      <div className="mapWrapper">
+        <MapContainer
+          center={mapCenter}
+          zoom={8}
+          scrollWheelZoom={true}
+          className="restaurantMap"
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
 
-            {/* LOCATE ME */}
-            <LocateMe />
+          <MapLocationPicker setSelectedLocation={setSelectedLocation} />
+          <LocateMeControl setSelectedLocation={setSelectedLocation} />
 
-            {/* RESTAURANT MARKERS */}
-            {validRestaurants.map((restaurant) => {
-              const lat = Number(restaurant.latitude ?? restaurant.lat);
-              const lng = Number(restaurant.longitude ?? restaurant.lng);
+          {/* User Location Marker */}
+          {selectedLocation && (
+            <Marker position={[selectedLocation.lat, selectedLocation.lng]}>
+              <Popup>
+                <div className="userLocationPopup">
+                  <strong>📍 Your Selected Location</strong>
+                </div>
+              </Popup>
+            </Marker>
+          )}
 
-              return (
-                <Marker key={restaurant._id} position={[lat, lng]}>
-                  <Popup>
-                    <div className="mapPopup">
-                      <img
-                        src={
-                          restaurant.image ||
-                          "https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=800&q=80"
-                        }
-                        alt={restaurant.name}
-                      />
-                      <h3>{restaurant.name}</h3>
-                      <p>⭐ {restaurant.rating}</p>
-                      <p>{restaurant.cuisine?.join(", ")}</p>
-                      <p>⏱️ {restaurant.deliveryTime} min</p>
-                      <Link
-                        to={`/restaurant/${restaurant._id}`}
-                        className="mapButton"
-                      >
-                        View Restaurant
-                      </Link>
-                    </div>
-                  </Popup>
-                </Marker>
+          {/* FIX 4: Render ALL Valid Restaurant Markers & Show Distance */}
+          {validRestaurants.map((restaurant) => {
+            const rLat = Number(restaurant.latitude);
+            const rLng = Number(restaurant.longitude);
+
+            let distanceFromUser = null;
+            if (selectedLocation) {
+              distanceFromUser = getHaversineDistance(
+                selectedLocation.lat,
+                selectedLocation.lng,
+                rLat,
+                rLng
               );
-            })}
-          </MapContainer>
-        </div>
-      )}
+            }
+
+            return (
+              <Marker key={restaurant._id} position={[rLat, rLng]}>
+                <Popup>
+                  <div className="mapPopup">
+                    <img
+                      src={
+                        restaurant.image ||
+                        "https://images.unsplash.com/photo-1552566626-52f8b828add9"
+                      }
+                      alt={restaurant.name}
+                    />
+                    <h3>{restaurant.name}</h3>
+                    <p>⭐ {restaurant.rating}</p>
+                    <p>{restaurant.cuisine?.join(", ")}</p>
+                    
+                    {distanceFromUser !== null && (
+                      <p style={{ fontWeight: "bold", color: "#e65100" }}>
+                        📍 {distanceFromUser} km away
+                      </p>
+                    )}
+
+                    <p>⏱️ {restaurant.deliveryTime} min</p>
+                    <Link to={`/restaurant/${restaurant._id}`} className="mapButton">
+                      View Restaurant
+                    </Link>
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          })}
+        </MapContainer>
+      </div>
     </section>
   );
 }
