@@ -1,3 +1,7 @@
+import React, { useState } from "react";
+import { Link } from "react-router-dom";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+
 /* =========================================================
    LOCATE ME BUTTON
 ========================================================= */
@@ -25,7 +29,7 @@ function LocateMe() {
 
         setLocation([lat, lng]);
 
-        map.flyTo([lat, lng], 15, {
+        map.flyTo([lat, lng], 12, {
           duration: 1.5,
         });
 
@@ -67,23 +71,16 @@ function LocateMe() {
           {locating ? "⏳ Locating..." : "📍 Locate Me"}
         </button>
 
-        {error && (
-          <div className="locationError">
-            {error}
-          </div>
-        )}
+        {error && <div className="locationError">{error}</div>}
       </div>
 
-      {/* USER LOCATION */}
+      {/* USER LOCATION MARKER */}
       {location && (
         <Marker position={location}>
           <Popup>
             <div className="userLocationPopup">
               <strong>📍 You are here</strong>
-
-              <p>
-                This is your current location.
-              </p>
+              <p>This is your current location.</p>
             </div>
           </Popup>
         </Marker>
@@ -92,38 +89,35 @@ function LocateMe() {
   );
 }
 
-
 /* =========================================================
    RESTAURANT MAP
 ========================================================= */
 
-function RestaurantMap({ restaurants }) {
-
+export default function RestaurantMap({ restaurants = [] }) {
+  // Validate coordinates and support both naming patterns (latitude vs lat)
   const validRestaurants = restaurants.filter((restaurant) => {
-    const lat = Number(restaurant.latitude);
-    const lng = Number(restaurant.longitude);
+    const lat = Number(restaurant.latitude ?? restaurant.lat);
+    const lng = Number(restaurant.longitude ?? restaurant.lng);
 
-    return (
-      Number.isFinite(lat) &&
-      Number.isFinite(lng)
-    );
+    return Number.isFinite(lat) && Number.isFinite(lng);
   });
+
+  // Calculate dynamic default center: fallback to Jaipur/Tonk area [26.8530, 75.8046]
+  const defaultCenter =
+    validRestaurants.length > 0
+      ? [
+          Number(validRestaurants[0].latitude ?? validRestaurants[0].lat),
+          Number(validRestaurants[0].longitude ?? validRestaurants[0].lng),
+        ]
+      : [26.8530, 75.8046];
 
   return (
     <section className="mapSection">
-
       {/* MAP HEADER */}
       <div className="mapHeader">
-
         <div>
-          <p className="eyebrow">
-            FIND YOUR FOOD
-          </p>
-
-          <h2>
-            Restaurants near you 📍
-          </h2>
-
+          <p className="eyebrow">FIND YOUR FOOD</p>
+          <h2>Restaurants near you 📍</h2>
           <p>
             Explore restaurants on the map and choose where you want to order from.
           </p>
@@ -132,110 +126,68 @@ function RestaurantMap({ restaurants }) {
         <div className="mapBadge">
           📍 {validRestaurants.length} locations
         </div>
-
       </div>
 
-
-      {/* MAP */}
+      {/* MAP / EMPTY STATE */}
       {validRestaurants.length === 0 ? (
-
         <div className="emptyState">
-
-          <div>
-            📍
-          </div>
-
-          <h3>
-            Restaurant locations unavailable
-          </h3>
-
+          <div style={{ fontSize: "2rem" }}>📍</div>
+          <h3>No restaurants found nearby</h3>
           <p>
-            Make sure your restaurants have latitude and longitude values.
+            There are no restaurants within your selected radius. Try selecting{" "}
+            <strong>"Show All"</strong> or expanding your search radius to view options across the region.
           </p>
-
         </div>
-
       ) : (
-
         <div className="mapWrapper">
-
           <MapContainer
-            center={[12.9716, 77.5946]}
-            zoom={12}
+            center={defaultCenter}
+            zoom={7}
             scrollWheelZoom={true}
             className="restaurantMap"
           >
-
             <TileLayer
-              attribution="&copy; OpenStreetMap contributors"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-
 
             {/* LOCATE ME */}
             <LocateMe />
 
-
             {/* RESTAURANT MARKERS */}
-            {validRestaurants.map((restaurant) => (
+            {validRestaurants.map((restaurant) => {
+              const lat = Number(restaurant.latitude ?? restaurant.lat);
+              const lng = Number(restaurant.longitude ?? restaurant.lng);
 
-              <Marker
-                key={restaurant._id}
-                position={[
-                  Number(restaurant.latitude),
-                  Number(restaurant.longitude),
-                ]}
-              >
-
-                <Popup>
-
-                  <div className="mapPopup">
-
-                    <img
-                      src={
-                        restaurant.image ||
-                        img("1552566626-52f8b828add9")
-                      }
-                      alt={restaurant.name}
-                    />
-
-                    <h3>
-                      {restaurant.name}
-                    </h3>
-
-                    <p>
-                      ⭐ {restaurant.rating}
-                    </p>
-
-                    <p>
-                      {restaurant.cuisine?.join(", ")}
-                    </p>
-
-                    <p>
-                      ⏱️ {restaurant.deliveryTime} min
-                    </p>
-
-                    <Link
-                      to={`/restaurant/${restaurant._id}`}
-                      className="mapButton"
-                    >
-                      View Restaurant
-                    </Link>
-
-                  </div>
-
-                </Popup>
-
-              </Marker>
-
-            ))}
-
+              return (
+                <Marker key={restaurant._id} position={[lat, lng]}>
+                  <Popup>
+                    <div className="mapPopup">
+                      <img
+                        src={
+                          restaurant.image ||
+                          "https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=800&q=80"
+                        }
+                        alt={restaurant.name}
+                      />
+                      <h3>{restaurant.name}</h3>
+                      <p>⭐ {restaurant.rating}</p>
+                      <p>{restaurant.cuisine?.join(", ")}</p>
+                      <p>⏱️ {restaurant.deliveryTime} min</p>
+                      <Link
+                        to={`/restaurant/${restaurant._id}`}
+                        className="mapButton"
+                      >
+                        View Restaurant
+                      </Link>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
           </MapContainer>
-
         </div>
-
       )}
-
     </section>
   );
 }
