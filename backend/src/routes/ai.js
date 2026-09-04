@@ -1243,6 +1243,39 @@ async function toolGenerateGroupMealPlan({
     }
   }
 
+  // UPSELL ADD-ONS: Fill remaining budget with drinks, desserts, or sides
+  const remainingMargin = budget - allocatedTotal;
+  const sharedAddOns = [];
+
+  if (remainingMargin >= 40) {
+    const addOnCandidates = catalog.filter(
+      (item) =>
+        item.price <= remainingMargin &&
+        !proposedItems.some((p) => p.itemId === item._id.toString())
+    ).sort((a, b) => b.price - a.price);
+
+    for (const addOn of addOnCandidates) {
+      if (allocatedTotal + addOn.price <= budget) {
+        sharedAddOns.push({
+          itemId: addOn._id.toString(),
+          name: addOn.name,
+          price: addOn.price,
+          quantity: 1,
+          isVeg: addOn.isVeg,
+          restaurantId: addOn.restaurant?._id?.toString(),
+          restaurantName: addOn.restaurant?.name,
+          image: addOn.image || addOn.restaurant?.image || null,
+          reason: `Added to fully utilize your remaining ₹${remainingMargin} budget balance!`
+        });
+
+        allocatedTotal += addOn.price;
+        break; // Add top fitting upsell
+      }
+    }
+  }
+
+  const finalRemaining = Math.max(0, budget - allocatedTotal);
+
   return {
     totalPeople:
       people,
@@ -1255,15 +1288,18 @@ async function toolGenerateGroupMealPlan({
 
     proposedItems,
 
+    sharedAddOns,
+
     calculatedTotal:
       allocatedTotal,
 
     budgetRemaining:
-      budget -
-      allocatedTotal,
+      finalRemaining,
 
     explanation:
-      `Constructed balanced meal for ${people} people (${veg} veg, ${nonVeg} non-veg) totaling ₹${allocatedTotal} within your ₹${budget} budget.`,
+      sharedAddOns.length > 0
+        ? `Constructed meal for ${people} people. You had extra budget remaining, so we added ${sharedAddOns[0].name} to complete your order totaling ₹${allocatedTotal} out of ₹${budget}!`
+        : `Constructed balanced meal for ${people} people (${veg} veg, ${nonVeg} non-veg) totaling ₹${allocatedTotal} within your ₹${budget} budget.`,
   };
 }
 
@@ -1712,7 +1748,8 @@ router.post(
         }
       );
 
-      const budgetRemaining =
+      // DYNAMIC UPSELLING FOR REMAINING BUDGET
+      let budgetRemaining =
         totalBudget -
         totalSpent;
 
@@ -1721,54 +1758,63 @@ router.post(
 
       if (
         budgetRemaining >=
-        100
+        40
       ) {
         const addOns =
           realMenu.filter(
             (i) =>
               i.price <=
                 budgetRemaining &&
-              i.price >= 40
-          );
+              i.price >= 30 &&
+              !memberRecommendations.some((m) => m.itemId === i._id.toString())
+          ).sort((a, b) => b.price - a.price);
 
         if (
           addOns.length > 0
         ) {
+          const selectedAddOn = addOns[0];
           sharedSuggestions.push(
             {
               itemId:
-                addOns[0]._id.toString(),
+                selectedAddOn._id.toString(),
 
               name:
-                addOns[0].name,
+                selectedAddOn.name,
 
               price:
-                addOns[0].price,
+                selectedAddOn.price,
 
               isVeg:
-                addOns[0].isVeg,
+                selectedAddOn.isVeg,
 
               image:
-                addOns[0].image ||
+                selectedAddOn.image ||
                 groupOrder
                   .restaurant
                   .image ||
                 null,
 
               reason:
-                `Recommended shared item fitting remaining ₹${budgetRemaining} budget!`,
+                `You have ₹${budgetRemaining} left in your ₹${totalBudget} budget! Added ${selectedAddOn.name} so your group can enjoy drinks/sides together! 🥤🍰`,
             }
           );
+
+          totalSpent += selectedAddOn.price;
+          budgetRemaining = totalBudget - totalSpent;
         }
       }
 
       addAudit(
         'Optimization Completed',
-        `Created full group order totaling ₹${totalSpent} (Budget ₹${totalBudget})`
+        `Created full group order totaling ₹${totalSpent} (Budget ₹${totalBudget}, Remaining ₹${Math.max(0, budgetRemaining)})`
       );
 
-      const explanationText =
-        `Why this works:
+      const explanationText = sharedSuggestions.length > 0
+        ? `Why this works:
+✓ Satisfies dietary choices for all ${preferences.length} members.
+✓ Uses REAL menu dishes from ${groupOrder.restaurant.name}.
+✓ You had ₹${budgetRemaining + sharedSuggestions[0].price} left in your ₹${totalBudget} budget, so we added ${sharedSuggestions[0].name} (₹${sharedSuggestions[0].price}) to maximize your group order!`
+        : `Why this works:
 ✓ Satisfies dietary restrictions for all ${preferences.length} members.
 ✓ Uses REAL menu dishes from ${groupOrder.restaurant.name}.
 ✓ Total cost is ₹${totalSpent}, keeping you ₹${Math.max(
@@ -2211,7 +2257,10 @@ ${
               'POPULATE_GROUP_ORDER',
 
             items:
-              toolCallResult.proposedItems,
+              [
+                ...toolCallResult.proposedItems,
+                ...(toolCallResult.sharedAddOns || [])
+              ],
 
             totalAmount:
               toolCallResult.calculatedTotal,

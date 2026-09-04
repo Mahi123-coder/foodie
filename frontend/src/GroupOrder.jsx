@@ -44,7 +44,7 @@ function GroupOrder() {
   const [totalBudget, setTotalBudget] = useState(1500);
   const [memberPrefs, setMemberPrefs] = useState([
     { name: 'Agrani', foodPreference: 'Vegetarian', spicePreference: 'Spicy', cravings: 'Paneer', personalBudget: 400 },
-    { name: 'aarav', foodPreference: 'Non-vegetarian', spicePreference: 'Medium', cravings: 'Biryani', personalBudget: 500 }
+    { name: 'Aarav', foodPreference: 'Non-vegetarian', spicePreference: 'Medium', cravings: 'Biryani', personalBudget: 500 }
   ]);
   const [aiLoading, setAiLoading] = useState(false);
   const [planResult, setPlanResult] = useState(null);
@@ -82,7 +82,8 @@ function GroupOrder() {
         setRestaurantsList(list);
       } catch (err) {
         console.error('Failed to load restaurants:', err);
-      } finally {
+      } font-family: sans-serif;
+      finally {
         setLoadingRestaurants(false);
       }
     };
@@ -364,8 +365,7 @@ function GroupOrder() {
   const isMySharePaid = myMemberRecord?.paymentStatus === 'PAID';
 
   /**
-   * FIX: Populates only the logged-in user's recommended item.
-   * Handles "Host" vs explicit member names ("Agrani") smoothly.
+   * Populates only the logged-in user's recommended item.
    */
   const approveAndAddToGroupOrder = async () => {
     if (!planResult || !groupCode) return;
@@ -418,6 +418,43 @@ function GroupOrder() {
     } catch (error) {
       console.error('Add to group order error:', error);
       setMessage('Failed to add item to group order.');
+    }
+  };
+
+  /**
+   * Adds ALL plan recommendations (individual dishes + shared upsell add-ons) directly to group order
+   */
+  const addAllPlanItemsToGroupOrder = async () => {
+    if (!planResult || !groupCode) return;
+
+    try {
+      setMessage('Adding all plan items and upsell add-ons to the room... ⏳');
+
+      const allItems = [
+        ...(planResult.memberRecommendations || []),
+        ...(planResult.sharedSuggestions || [])
+      ];
+
+      for (const item of allItems) {
+        if (!item.itemId) continue;
+        await fetch(`${API}/group-orders/${groupCode}/items`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            menuItemId: item.itemId,
+            quantity: 1
+          })
+        });
+      }
+
+      setMessage('Full meal combination added to group room! 🎉');
+      await loadGroup(groupCode);
+    } catch (error) {
+      console.error('Add all items error:', error);
+      setMessage('Failed to add all plan items to group order.');
     }
   };
 
@@ -746,7 +783,6 @@ function GroupOrder() {
                           ? 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop'
                           : 'https://images.unsplash.com/photo-1588168333986-5078d3ae3976?w=500&auto=format&fit=crop';
 
-                        // Check if this recommended member has actually joined the room yet
                         const isJoined = group?.groupMembers?.some((gm) => gm.name?.trim().toLowerCase() === rec.memberName?.trim().toLowerCase());
 
                         return (
@@ -827,13 +863,24 @@ function GroupOrder() {
                       </div>
                     </div>
 
-                    {/* ACTION BUTTON */}
-                    <button
-                      onClick={approveAndAddToGroupOrder}
-                      style={{ width: '100%', padding: '14px', background: '#ff5722', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '15px', boxShadow: '0 4px 12px rgba(255, 87, 34, 0.25)' }}
-                    >
-                      ✨ Add My Recommended Dish to My Share
-                    </button>
+                    {/* ACTION BUTTONS */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <button
+                        onClick={approveAndAddToGroupOrder}
+                        style={{ width: '100%', padding: '12px', background: '#ff5722', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px', boxShadow: '0 4px 12px rgba(255, 87, 34, 0.25)' }}
+                      >
+                        ✨ Add My Recommended Dish to My Share
+                      </button>
+
+                      {planResult.sharedSuggestions?.length > 0 && (
+                        <button
+                          onClick={addAllPlanItemsToGroupOrder}
+                          style={{ width: '100%', padding: '12px', background: '#2e7d32', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}
+                        >
+                          🛒 Add Full Plan + Shared Add-ons to Room Order
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div style={{ background: '#fff', border: '2px dashed #c8e6c9', borderRadius: '16px', padding: '40px 20px', textAlign: 'center', color: '#666' }}>
