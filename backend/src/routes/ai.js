@@ -16,6 +16,7 @@ const router = Router();
 // If one is unavailable, overloaded, rate-limited, or times out,
 // the backend automatically tries the next model.
 const GEMINI_MODELS = [
+  'gemini-3.8-flash',
   'gemini-3.5-flash-lite',
   'gemini-3.6-flash',
   'gemini-3.7-flash',
