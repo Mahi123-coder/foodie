@@ -1066,6 +1066,8 @@ function Home({ add, cart }) {
                 <option value={10}>10 km</option>
                 <option value={25}>25 km</option>
                 <option value={50}>50 km</option>
+                <option value={100}>100 km (Jaipur)</option>
+                <option value={350}>350 km (All NCR & Delhi)</option>
               </select>
             </div>
           </div>
