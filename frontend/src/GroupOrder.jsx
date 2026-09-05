@@ -226,6 +226,7 @@ function GroupOrder() {
     }
 
     const code = joinCode.trim().toUpperCase();
+    const joinedName = name.trim();
 
     try {
       setLoading(true);
@@ -237,21 +238,21 @@ function GroupOrder() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ name: name.trim() || 'Member' })
+        body: JSON.stringify({ name: joinedName || 'Member' })
       });
 
       const data = await response.json();
 
       if (response.ok || data.message?.includes('already joined') || data.message?.includes('Welcome back')) {
-        // Save guest/joined identity into tab-scoped sessionStorage
         const joinedUserId = data.userId || data.member?._id || data.member?.user || data.user?._id;
         if (joinedUserId) {
           sessionStorage.setItem('guestUserId', joinedUserId.toString());
         }
-        if (name.trim()) {
-          sessionStorage.setItem('guestUserName', name.trim().toLowerCase());
+        if (joinedName) {
+          sessionStorage.setItem('guestUserName', joinedName.toLowerCase());
         }
 
+        setName('');
         setGroupCode(code);
         setMenuItems([]);
         await loadGroup(code);
@@ -374,13 +375,11 @@ function GroupOrder() {
   const myMemberRecord = group?.groupMembers?.find((m) => {
     const memberId = (m.user?._id || m.user || m._id)?.toString();
     const memberName = (m.name || '').trim().toLowerCase();
-    const typedName = (name || '').trim().toLowerCase();
 
     return (
       (memberId && currentUserId && memberId === currentUserId.toString()) ||
       (memberId && savedGuestId && memberId === savedGuestId) ||
-      (memberName && savedGuestName && memberName === savedGuestName) ||
-      (memberName && typedName && memberName === typedName)
+      (memberName && savedGuestName && memberName === savedGuestName)
     );
   });
 
@@ -396,7 +395,7 @@ function GroupOrder() {
     try {
       setMessage('Adding your recommended item to your share... ⏳');
 
-      const myCurrentName = (myMemberRecord?.name || name || '').trim().toLowerCase();
+      const myCurrentName = (myMemberRecord?.name || '').trim().toLowerCase();
       const memberRecs = planResult.memberRecommendations || [];
 
       if (memberRecs.length === 0) {
@@ -1123,21 +1122,19 @@ function GroupOrder() {
           group.groupMembers.map((member, index) => {
             const memberId = (member.user?._id || member.user || member._id)?.toString();
             const memberName = (member.name || '').trim().toLowerCase();
-            const typedName = (name || '').trim().toLowerCase();
 
             // Unique identification check scoped to current browser tab
             const isMe =
               (memberId && currentUserId && memberId === currentUserId.toString()) ||
               (memberId && savedGuestId && memberId === savedGuestId) ||
-              (memberName && savedGuestName && memberName === savedGuestName) ||
-              (memberName && typedName && memberName === typedName);
+              (memberName && savedGuestName && memberName === savedGuestName);
 
             return (
               <div
                 key={member.user?._id || member.user || index}
                 style={{
                   display: 'flex',
-                  justify: 'space-between',
+                  justifyContent: 'space-between',
                   alignItems: 'flex-start',
                   padding: '16px 20px',
                   marginTop: '12px',
