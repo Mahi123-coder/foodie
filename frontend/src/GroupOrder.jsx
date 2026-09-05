@@ -49,13 +49,12 @@ function GroupOrder() {
   const [aiLoading, setAiLoading] = useState(false);
   const [planResult, setPlanResult] = useState(null);
 
-  const token = localStorage.getItem('token');
+  const token = sessionStorage.getItem('token');
 
-  // Updated ID helper: checks tab-scoped guest identity before fallback to global JWT token
+  // Always identify the user from the JWT stored in this browser tab.
+  // Do NOT use guestUserId / guestUserName because they can make
+  // different logged-in accounts appear to be the same person.
   const getLoggedInUserId = () => {
-    const guestUserId = sessionStorage.getItem('guestUserId');
-    if (guestUserId) return guestUserId;
-
     if (!token) return null;
     try {
       const base64Url = token.split('.')[1];
@@ -244,14 +243,6 @@ function GroupOrder() {
       const data = await response.json();
 
       if (response.ok || data.message?.includes('already joined') || data.message?.includes('Welcome back')) {
-        const joinedUserId = data.userId || data.member?._id || data.member?.user || data.user?._id;
-        if (joinedUserId) {
-          sessionStorage.setItem('guestUserId', joinedUserId.toString());
-        }
-        if (joinedName) {
-          sessionStorage.setItem('guestUserName', joinedName.toLowerCase());
-        }
-
         setName('');
         setGroupCode(code);
         setMenuItems([]);
@@ -368,19 +359,11 @@ function GroupOrder() {
     }
   };
 
-  // Find record for current logged in user or tab guest in groupMembers
-  const savedGuestId = sessionStorage.getItem('guestUserId');
-  const savedGuestName = sessionStorage.getItem('guestUserName');
-
+  // Find the member record using ONLY the authenticated JWT user ID.
   const myMemberRecord = group?.groupMembers?.find((m) => {
     const memberId = (m.user?._id || m.user || m._id)?.toString();
-    const memberName = (m.name || '').trim().toLowerCase();
 
-    return (
-      (memberId && currentUserId && memberId === currentUserId.toString()) ||
-      (memberId && savedGuestId && memberId === savedGuestId) ||
-      (memberName && savedGuestName && memberName === savedGuestName)
-    );
+    return memberId && currentUserId && memberId === currentUserId.toString();
   });
 
   const myShareAmount = myMemberRecord?.shareAmount || 0;
@@ -1123,11 +1106,9 @@ function GroupOrder() {
             const memberId = (member.user?._id || member.user || member._id)?.toString();
             const memberName = (member.name || '').trim().toLowerCase();
 
-            // Unique identification check scoped to current browser tab
+            // Identify "You" strictly by the authenticated JWT user ID.
             const isMe =
-              (memberId && currentUserId && memberId === currentUserId.toString()) ||
-              (memberId && savedGuestId && memberId === savedGuestId) ||
-              (memberName && savedGuestName && memberName === savedGuestName);
+              memberId && currentUserId && memberId === currentUserId.toString();
 
             return (
               <div
