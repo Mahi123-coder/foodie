@@ -128,6 +128,9 @@ const loadRazorpayScript = () => {
   });
 };
 
+// Helper function to safely retrieve tab-isolated token
+const getToken = () => sessionStorage.getItem('token') || localStorage.getItem('token');
+
 // =========================================================
 // APP
 // =========================================================
@@ -449,7 +452,7 @@ function RestaurantMap({ restaurants = [], selectedLocation, setSelectedLocation
 }
 
 // =========================================================
-// HOME (WITH AGENTIC COMMERCE WORKFLOW & SWIGGY-STYLE CARDS)
+// HOME
 // =========================================================
 
 function Home({ add, cart }) {
@@ -580,7 +583,7 @@ function Home({ add, cart }) {
       setAgentItems([]);
       setProposedAction(null);
 
-      const token = localStorage.getItem('token');
+      const token = getToken();
 
       let response = await fetch(`${API}/ai/agent`, {
         method: 'POST',
@@ -614,7 +617,6 @@ function Home({ add, cart }) {
         setAiReply(sanitizeText(result.reply || result.message));
       }
 
-      // Handle Audit Trail from Agent response or generate a standard client trail fallback
       if (Array.isArray(result.auditTrail) && result.auditTrail.length > 0) {
         setAuditTrail(result.auditTrail);
       } else {
@@ -679,9 +681,6 @@ function Home({ add, cart }) {
         </div>
       </section>
 
-      {/* =================================================
-          AI COMMERCE AGENT SECTION
-      ================================================= */}
       <section
         className="aiBox"
         style={{
@@ -719,7 +718,6 @@ function Home({ add, cart }) {
           <div style={{ fontSize: '38px' }}>⚡</div>
         </div>
 
-        {/* Natural Language Input */}
         <div className="aiSearch" style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
           <input
             value={aiQuery}
@@ -753,7 +751,6 @@ function Home({ add, cart }) {
           </button>
         </div>
 
-        {/* Clean Explanation Banner */}
         {aiReply && (
           <div
             style={{
@@ -769,7 +766,6 @@ function Home({ add, cart }) {
             <strong>Agent Explanation:</strong>
             <p style={{ margin: '6px 0 0 0' }}>{aiReply}</p>
 
-            {/* AI AGENT AUDIT TRAIL & EXECUTION LOG PANEL */}
             {auditTrail && auditTrail.length > 0 && (
               <div style={{ marginTop: '16px', background: '#0f172a', color: '#e2e8f0', padding: '16px', borderRadius: '12px', fontFamily: 'monospace', fontSize: '12px', border: '1px solid #334155' }}>
                 <div style={{ fontWeight: 'bold', color: '#38bdf8', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -790,7 +786,6 @@ function Home({ add, cart }) {
           </div>
         )}
 
-        {/* Group Plan Approval Card */}
         {proposedAction && proposedAction.type === 'POPULATE_GROUP_ORDER' && (
           <div
             style={{
@@ -845,7 +840,6 @@ function Home({ add, cart }) {
           </div>
         )}
 
-        {/* Cart Optimization Card */}
         {proposedAction && proposedAction.type === 'APPLY_CART_OPTIMIZATION' && (
           <div
             style={{
@@ -882,7 +876,6 @@ function Home({ add, cart }) {
           </div>
         )}
 
-        {/* Recommendation Cards Grid */}
         {agentItems.length > 0 && (
           <div
             style={{
@@ -904,7 +897,7 @@ function Home({ add, cart }) {
                     overflow: 'hidden',
                     display: 'flex',
                     flexDirection: 'column',
-                    justifyContent: 'space-between',
+                    justify: 'space-between',
                     boxShadow: '0 4px 14px rgba(0,0,0,0.04)'
                   }}
                 >
@@ -986,9 +979,6 @@ function Home({ add, cart }) {
         )}
       </section>
 
-      {/* =================================================
-          LOCATION DISCOVERY
-      ================================================= */}
       <section
         style={{
           margin: '30px auto',
@@ -1003,7 +993,7 @@ function Home({ add, cart }) {
         <div
           style={{
             display: 'flex',
-            justifyContent: 'space-between',
+            justify: 'space-between',
             alignItems: 'center',
             gap: '20px',
             flexWrap: 'wrap'
@@ -1067,7 +1057,7 @@ function Home({ add, cart }) {
               borderRadius: '14px',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
+              justify: 'space-between',
               gap: '20px',
               flexWrap: 'wrap'
             }}
@@ -1108,9 +1098,6 @@ function Home({ add, cart }) {
         )}
       </section>
 
-      {/* =================================================
-          FOOD CATEGORIES
-      ================================================= */}
       <section className="categories">
         <h2>What are you craving?</h2>
         <div className="categoryRow">
@@ -1141,14 +1128,11 @@ function Home({ add, cart }) {
         </div>
       </section>
 
-      {/* =================================================
-          RESTAURANTS
-      ================================================= */}
       <section className="restaurantsSection">
         <div
           style={{
             display: 'flex',
-            justifyContent: 'space-between',
+            justify: 'space-between',
             alignItems: 'center',
             gap: '20px',
             flexWrap: 'wrap'
@@ -1237,9 +1221,6 @@ function Home({ add, cart }) {
         )}
       </section>
 
-      {/* =================================================
-          RESTAURANT MAP (RECEIVES ALL RESTAURANTS FROM API)
-      ================================================= */}
       <RestaurantMap
         restaurants={data}
         selectedLocation={selectedLocation}
@@ -1333,7 +1314,7 @@ function Cart({ cart, remove, setCart }) {
   const [loading, setLoading] = useState(false);
 
   const place = async () => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
 
     if (!token) {
       nav('/login');
@@ -1549,7 +1530,10 @@ function Auth({ mode }) {
         return;
       }
 
-      localStorage.setItem('token', b.token);
+      // Save token to sessionStorage (scoped to this browser tab)
+      sessionStorage.setItem('token', b.token);
+      localStorage.setItem('token', b.token); // Optional fallback
+
       setMsg(
         mode === 'login'
           ? 'Login successful! 🎉'
@@ -1606,7 +1590,7 @@ function Orders() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) {
       setLoading(false);
       return;
@@ -1657,7 +1641,7 @@ function Orders() {
             <div
               style={{
                 display: 'flex',
-                justifyContent: 'space-between',
+                justify: 'space-between',
                 alignItems: 'center',
                 borderBottom: '1px solid #f0f0f0',
                 paddingBottom: '10px'
@@ -1726,7 +1710,7 @@ function Orders() {
                         <div
                           style={{
                             display: 'flex',
-                            justifyContent: 'space-between',
+                            justify: 'space-between',
                             fontWeight: '600'
                           }}
                         >
