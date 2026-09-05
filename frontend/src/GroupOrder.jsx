@@ -51,7 +51,11 @@ function GroupOrder() {
 
   const token = localStorage.getItem('token');
 
+  // Updated ID helper: checks tab-scoped guest identity before fallback to global JWT token
   const getLoggedInUserId = () => {
+    const guestUserId = sessionStorage.getItem('guestUserId');
+    if (guestUserId) return guestUserId;
+
     if (!token) return null;
     try {
       const base64Url = token.split('.')[1];
@@ -82,7 +86,7 @@ function GroupOrder() {
         setRestaurantsList(list);
       } catch (err) {
         console.error('Failed to load restaurants:', err);
-      } fontFinally: {
+      } finally {
         setLoadingRestaurants(false);
       }
     };
@@ -239,6 +243,15 @@ function GroupOrder() {
       const data = await response.json();
 
       if (response.ok || data.message?.includes('already joined') || data.message?.includes('Welcome back')) {
+        // Save guest/joined identity into tab-scoped sessionStorage
+        const joinedUserId = data.userId || data.member?._id || data.member?.user || data.user?._id;
+        if (joinedUserId) {
+          sessionStorage.setItem('guestUserId', joinedUserId.toString());
+        }
+        if (name.trim()) {
+          sessionStorage.setItem('guestUserName', name.trim().toLowerCase());
+        }
+
         setGroupCode(code);
         setMenuItems([]);
         await loadGroup(code);
@@ -354,10 +367,21 @@ function GroupOrder() {
     }
   };
 
-  // Find record for current logged in user in groupMembers
+  // Find record for current logged in user or tab guest in groupMembers
+  const savedGuestId = sessionStorage.getItem('guestUserId');
+  const savedGuestName = sessionStorage.getItem('guestUserName');
+
   const myMemberRecord = group?.groupMembers?.find((m) => {
-    const memberId = m.user?._id || m.user;
-    return memberId && currentUserId && memberId.toString() === currentUserId.toString();
+    const memberId = (m.user?._id || m.user || m._id)?.toString();
+    const memberName = (m.name || '').trim().toLowerCase();
+    const typedName = (name || '').trim().toLowerCase();
+
+    return (
+      (memberId && currentUserId && memberId === currentUserId.toString()) ||
+      (memberId && savedGuestId && memberId === savedGuestId) ||
+      (memberName && savedGuestName && memberName === savedGuestName) ||
+      (memberName && typedName && memberName === typedName)
+    );
   });
 
   const myShareAmount = myMemberRecord?.shareAmount || 0;
@@ -1097,14 +1121,23 @@ function GroupOrder() {
         <h2>Group Members ({group?.groupMembers?.length || 0})</h2>
         {group?.groupMembers?.length ? (
           group.groupMembers.map((member, index) => {
-            const isMe = (member.user?._id || member.user)?.toString() === currentUserId?.toString();
+            const memberId = (member.user?._id || member.user || member._id)?.toString();
+            const memberName = (member.name || '').trim().toLowerCase();
+            const typedName = (name || '').trim().toLowerCase();
+
+            // Unique identification check scoped to current browser tab
+            const isMe =
+              (memberId && currentUserId && memberId === currentUserId.toString()) ||
+              (memberId && savedGuestId && memberId === savedGuestId) ||
+              (memberName && savedGuestName && memberName === savedGuestName) ||
+              (memberName && typedName && memberName === typedName);
 
             return (
               <div
                 key={member.user?._id || member.user || index}
                 style={{
                   display: 'flex',
-                  justifyContent: 'space-between',
+                  justify: 'space-between',
                   alignItems: 'flex-start',
                   padding: '16px 20px',
                   marginTop: '12px',
