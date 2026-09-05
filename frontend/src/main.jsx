@@ -129,8 +129,7 @@ const loadRazorpayScript = () => {
 };
 
 // Helper function to safely retrieve tab-isolated token
-const getToken = () => sessionStorage.getItem('token') || localStorage.getItem('token');
-
+const getToken = () => sessionStorage.getItem('token');
 // =========================================================
 // APP
 // =========================================================
@@ -138,14 +137,14 @@ const getToken = () => sessionStorage.getItem('token') || localStorage.getItem('
 function App() {
   const [cart, setCart] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('cart') || '[]');
+      return JSON.parse(sessionStorage.getItem('cart') || '[]');
     } catch {
       return [];
     }
   });
 
   useEffect(() => {
-    localStorage.setItem('cart', JSON.stringify(cart));
+    sessionStorage.setItem('cart', JSON.stringify(cart));
   }, [cart]);
 
   // ADD TO CART
@@ -203,7 +202,13 @@ function App() {
         <Route path="/restaurant/:id" element={<Restaurant add={add} />} />
         <Route
           path="/cart"
-          element={<Cart cart={cart} remove={remove} setCart={setCart} />}
+          element={
+            <Cart
+              cart={cart}
+              remove={remove}
+              setCart={setCart}
+            />
+          }
         />
         <Route path="/login" element={<Auth mode="login" />} />
         <Route path="/register" element={<Auth mode="register" />} />
@@ -1532,7 +1537,7 @@ function Auth({ mode }) {
 
       // Save token to sessionStorage (scoped to this browser tab)
       sessionStorage.setItem('token', b.token);
-      localStorage.setItem('token', b.token); // Optional fallback
+      
 
       setMsg(
         mode === 'login'
